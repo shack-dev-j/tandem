@@ -87,8 +87,17 @@ function checklist({ me, date, day, subjects, done, back, remaining, pct }) {
   }
 
   const outstanding = remaining + back.reduce((n, g) => n + g.subjects.length, 0);
+  const alone = !partner();
 
   return [
+    // Ticking your own work is the fallback, not the design. Say so, or the
+    // first thing anyone notices is that the one rule the app is built on
+    // does not appear to apply.
+    alone ? h('div.solonote', {}, [
+      h('span', { text: 'Nobody is confirming your work yet, so you are ticking your own.' }),
+      h('a', { href: '#/settings', text: 'Connect the other person →' }),
+    ]) : null,
+
     h('div.progresscard', {}, [
       ring(pct, 54, 5),
       h('div.pgtext', {}, [

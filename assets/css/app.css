@@ -729,3 +729,14 @@ select { appearance: none; background-image: linear-gradient(45deg, transparent 
 .pickshot:hover { border-color: var(--ac); color: var(--ac); }
 .pickshot input { position: absolute; width: 1px; height: 1px; opacity: 0; }
 .toast.undo { border-color: var(--line2); color: var(--muted); font-family: var(--mono); }
+
+/* Shown only while there is no second person: explains why the central rule
+   of the app is not in force yet. */
+.solonote {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px;
+  padding: 10px 13px; border-radius: var(--r);
+  border: 1px dashed var(--line2); background: var(--panel2);
+  font-size: 12.5px; color: var(--muted);
+}
+.solonote a { color: var(--ac); white-space: nowrap; }
+.solonote a:hover { text-decoration: underline; text-underline-offset: 3px; }

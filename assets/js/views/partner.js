@@ -23,8 +23,8 @@ export function partnerView() {
       empty(
         state.mode === 'local' ? 'This device only' : 'Their seat is waiting',
         state.mode === 'local'
-          ? 'Tandem is running without a backend, so there is nobody to sync with. Connect one in Settings and the second seat becomes available.'
-          : 'Their email has a seat. As soon as they sign in, everything they do appears here.',
+          ? 'Tandem is keeping everything in this browser, so there is nobody to sync with — and nobody to confirm your homework, which is why you can currently tick it yourself. Connect a backend and that changes.'
+          : 'Their email has a seat. The moment they sign in, everything they do appears here — and your own ticks pass to them.',
         h('a.button.primary', { href: '#/settings', text: 'Open Settings' })),
     ];
   }
