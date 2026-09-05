@@ -49,7 +49,7 @@ export function auth() {
       }
       location.hash = '#/';
     } catch (err) {
-      toast(friendly(err), 'warn', 5000);
+      toast(friendly(err), 'warn', 12000);
     } finally {
       busy = false;
       refresh();
@@ -100,10 +100,26 @@ export function auth() {
 
 function friendly(err) {
   const m = String(err?.message || err);
+  const status = err?.status;
+
+  // 429 on sign-up is almost never about sign-ups. It is the built-in email
+  // service, which a free project may use about twice an hour, and every
+  // attempt with confirmation on spends one. Saying "too many requests" sends
+  // people off to wait, when the fix is a setting.
+  if (status === 429 || /rate limit|too many requests/i.test(m)) {
+    return 'Supabase is rate-limiting its confirmation emails — free projects get '
+         + 'about two an hour. Turn off Authentication → Sign In / Providers → '
+         + 'Email → Confirm email, and sign up again: it will not send one at all.';
+  }
   if (/invalid login credentials/i.test(m)) return 'That email and password do not match';
-  if (/already registered/i.test(m)) return 'That account exists — sign in instead';
+  if (/already registered|already been registered/i.test(m)) return 'That account exists — sign in instead';
   if (/failed to fetch|networkerror/i.test(m)) return 'Cannot reach the backend. Check the URL, or your connection.';
-  if (/email.*invalid/i.test(m)) return 'That email address does not look right';
+  if (/email.*invalid|invalid.*email/i.test(m)) return 'That email address does not look right';
+  if (/password.*at least|weak password/i.test(m)) return 'That password is too short — use at least 8 characters';
+  if (/signups not allowed|signup is disabled/i.test(m)) {
+    return 'Sign-ups are switched off for this project. Turn them back on under '
+         + 'Authentication → Sign In / Providers → Email.';
+  }
   return m;
 }
 

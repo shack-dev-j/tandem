@@ -127,6 +127,12 @@ user and start over.
 **Everything is empty after signing in** — usually the seat. Run Test
 connection; if it says there is no seat, add it and press Check again.
 
+**Error 429 when creating an account** — that is the email service, not the
+sign-up. A free project may send roughly two confirmation emails an hour, and
+each attempt spends one. Turn off **Authentication → Sign In / Providers →
+Email → Confirm email** and sign up again; with confirmation off no email is
+sent, so there is nothing to rate-limit.
+
 **The pill says Offline** — the URL is wrong, or the project is paused.
 Supabase pauses free projects after a week with no requests; the dashboard has
 a button to bring it back.
