@@ -4,6 +4,7 @@ import { h, mount, toast, closeSheet } from './ui.js';
 import * as store from './store.js';
 import { state } from './store.js';
 import { applyTheme } from './theme.js';
+import { BUILD } from './version.js';
 import * as D from './domain.js';
 import * as A from './actions.js';
 import { rerender, syncPill, avatar, reviewCount } from './views/parts.js';
@@ -199,3 +200,26 @@ store.subscribe(render);
 }());
 
 window.addEventListener('error', (e) => console.error('tandem:', e.error || e.message));
+
+// ------------------------------------------------------------ new builds
+//
+// A static host caches aggressively, so the only reliable way to know the
+// page is stale is to ask the server past the cache and compare.
+
+let told = false;
+async function checkForUpdate() {
+  if (told) return;
+  try {
+    const res = await fetch('./assets/js/version.js?t=' + Date.now(), { cache: 'no-store' });
+    if (!res.ok) return;
+    const live = /BUILD\s*=\s*'([^']+)'/.exec(await res.text())?.[1];
+    if (!live || live === BUILD) return;
+    told = true;
+    toast('A newer version is out — tap to load it', 'gold', 60_000)
+      .addEventListener('click', () => location.reload(true));
+  } catch { /* offline, or the host is down; either way, not worth saying */ }
+}
+
+setTimeout(checkForUpdate, 3000);
+setInterval(checkForUpdate, 15 * 60_000);
+window.addEventListener('focus', checkForUpdate);

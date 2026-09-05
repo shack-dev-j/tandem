@@ -6,6 +6,7 @@ import { h, toast, confirmSheet, formSheet } from '../ui.js';
 import { state, savePrefs, signOut, patch, pull } from '../store.js';
 import { setBackend, backend } from '../config.js';
 import * as supa from '../lib/supa.js';
+import { BUILD } from '../version.js';
 import { THEMES, FONTS, DENSITIES, RADII, WIDGETS, applyTheme, widgetSequence } from '../theme.js';
 import * as D from '../domain.js';
 import { sectionHead, refresh, avatar } from './parts.js';
@@ -128,6 +129,7 @@ export function settings() {
         ]) : h('a.button.primary', { href: '#/auth', text: 'Sign in to sync' }),
         h('hr'),
         h('p.meta', { text: 'Clearing wipes this browser\'s copy. With a backend connected, it syncs back down; without one, it is gone.' }),
+        h('p.meta', { text: 'Build ' + BUILD }),
         h('button.danger.small', {
           text: 'Clear local data',
           onclick: async () => {

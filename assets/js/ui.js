@@ -52,6 +52,7 @@ export function toast(message, kind = 'ok', ms = 3200) {
   }
   const t = h('div.toast.' + kind, { text: message });
   toastHost.append(t);
+  t.style.pointerEvents = 'auto';
   setTimeout(() => {
     t.classList.add('out');
     setTimeout(() => t.remove(), 260);

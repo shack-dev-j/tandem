@@ -16,6 +16,12 @@ else
     --description "A homework and goal tracker for two people."
 fi
 
+# Stamp the build so a stale browser can notice it is stale.
+printf "export const BUILD = '%s';\n" "$(date -u +%Y-%m-%dT%H:%MZ)" \
+  > /tmp/tandem_build && \
+  sed -i "s|^export const BUILD = .*|$(cat /tmp/tandem_build)|" assets/js/version.js && \
+  git add assets/js/version.js && git commit -q -m "Stamp build" 2>/dev/null || true
+
 git branch -M main
 git push -u origin main
 
