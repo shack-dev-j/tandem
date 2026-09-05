@@ -63,8 +63,9 @@ export async function runDiagnostics() {
     if (info.seats === 0) {
       out.push(line(false, 'There are no seats yet, so nobody can get in — including you. '
         + 'Add yours in the SQL editor first:\n'
-        + "insert into seats (email, role, display_name)\n"
-        + "values ('you@example.com', 'student', 'Your name');"));
+        + 'insert into seats (email, role, display_name)\n'
+        + "values ('you@example.com', 'student', 'Your name')\n"
+        + 'on conflict (email) do update set role = excluded.role;'));
     } else {
       out.push(line(false, `Not signed in yet. There ${info.seats === 1 ? 'is 1 seat' : `are ${info.seats} seats`} `
         + 'waiting — go to the sign-in screen, choose "I need to create my account", '
@@ -77,7 +78,9 @@ export async function runDiagnostics() {
   out.push(line(info.has_seat, info.has_seat
     ? 'That email has a seat.'
     : `No seat for ${info.email}. Run this in the SQL editor, then press Check again:\n`
-      + `insert into seats (email, role, display_name)\nvalues ('${info.email}', 'student', 'Your name');`));
+      + 'insert into seats (email, role, display_name)\n'
+      + `values ('${info.email}', 'student', 'Your name')\n`
+      + 'on conflict (email) do update set role = excluded.role;'));
 
   if (info.has_seat) {
     out.push(line(info.is_member, info.is_member

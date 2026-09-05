@@ -40,8 +40,10 @@ New query again. Change the emails and names, then run:
 
 ```sql
 insert into seats (email, role, display_name) values
-  ('you@example.com',     'student', 'Your name'),
-  ('them@example.com',    'partner', 'Their name');
+  ('you@example.com',  'student', 'Your name'),
+  ('them@example.com', 'student', 'Their name')
+on conflict (email) do update
+  set role = excluded.role, display_name = excluded.display_name;
 ```
 
 If you are two students tracking each other, give both of you `student` — you
@@ -51,6 +53,10 @@ someone who never has homework of their own, like a parent or a tutor.
 Neither role lets you confirm your own work. That is not a setting.
 
 The email has to match exactly what each of you signs up with.
+
+`on conflict` makes this safe to run again — without it, a second run fails
+with *duplicate key value violates unique constraint "seats_pkey"*, which
+sounds like a problem and only means the seat is already there.
 
 ## 4. Close the door behind you
 

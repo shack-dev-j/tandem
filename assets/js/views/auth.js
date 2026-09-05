@@ -150,7 +150,7 @@ function noSeatScreen() {
     h('h1', { text: 'No seat for this account' }),
     h('p.lede', { text: `You are signed in as ${supa.currentUser()?.email || 'this account'}, but the database is not showing you as a member. Usually that means this email has no seat — press Test connection below and it will say for certain.` }),
     h('p.meta', { text: 'If it is the seat, add it in the Supabase SQL editor:' }),
-    h('pre.code', { text: "insert into seats (email, role, display_name)\nvalues ('you@example.com', 'student', 'Your name');" }),
+    h('pre.code', { text: "insert into seats (email, role, display_name)\nvalues ('you@example.com', 'student', 'Your name')\non conflict (email) do update set role = excluded.role;" }),
     h('p.meta', { text: 'Then press this — no need to sign out or start again.' }),
     h('button.primary.full', {
       text: 'Check again',
