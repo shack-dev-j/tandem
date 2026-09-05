@@ -19,7 +19,11 @@ Wait for the project to finish provisioning.
 ## 2. Create the tables
 
 In the left sidebar: **SQL Editor** → **New query**. Paste the entire contents
-of `supabase/schema.sql` and press **Run**.
+of `supabase/migrations/20260906000000_initial_schema.sql` and press **Run**.
+
+*Or*, if you have connected this repository under **Integrations → GitHub**
+with the working directory `.` and the production branch `main`, the migration
+is applied for you on every push and you can skip this step.
 
 It should say "Success. No rows returned". That has created every table, every
 policy, and the trigger that hands out seats.

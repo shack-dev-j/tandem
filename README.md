@@ -47,7 +47,7 @@ the person they belong to, enforced in Postgres, not in JavaScript. Everything
 else — subjects, timetable, tasks, goals — either of you can edit, which is
 what makes the partner side useful.
 
-See `supabase/schema.sql`; the policies are the last third of the file.
+See `supabase/migrations/`; the policies are the last third of the file.
 
 ## Setting it up
 
@@ -99,7 +99,7 @@ assets/js/
   seed.js                 the starter timetable
   views/                  one file per screen
   app.js                  routing and boot
-supabase/schema.sql       the entire backend
+supabase/migrations/      the entire backend, in one file
 ```
 
 ## Making it yours

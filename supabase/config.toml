@@ -1,0 +1,10 @@
+# Only the CLI reads this. The GitHub integration deploys whatever is in
+# migrations/ and ignores everything here except project_id.
+#
+# To work on the database locally (`supabase start`, `supabase db diff`), put
+# your project ref here — it is the subdomain of your project URL, so for
+# https://abcdefgh.supabase.co the ref is "abcdefgh". It is not a secret.
+project_id = ""
+
+[db]
+major_version = 15
