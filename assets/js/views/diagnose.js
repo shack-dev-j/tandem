@@ -57,8 +57,19 @@ export async function runDiagnostics() {
   out.push(line(true, `Database reached — ${info.seats} seat(s), ${info.members} member(s).`));
 
   if (!info.signed_in) {
-    out.push(line(false, 'Not signed in yet. Create your account on the sign-in screen, '
-      + 'using an email that has a seat.'));
+    // Whether any seats exist at all decides what to do next, and it is
+    // knowable without being signed in — so say it rather than making
+    // someone create an account to find out it was never going to work.
+    if (info.seats === 0) {
+      out.push(line(false, 'There are no seats yet, so nobody can get in — including you. '
+        + 'Add yours in the SQL editor first:\n'
+        + "insert into seats (email, role, display_name)\n"
+        + "values ('you@example.com', 'student', 'Your name');"));
+    } else {
+      out.push(line(false, `Not signed in yet. There ${info.seats === 1 ? 'is 1 seat' : `are ${info.seats} seats`} `
+        + 'waiting — go to the sign-in screen, choose "I need to create my account", '
+        + 'and use the exact email you gave a seat to.'));
+    }
     return show(out);
   }
   out.push(line(true, 'Signed in as ' + info.email));
