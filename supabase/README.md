@@ -11,9 +11,12 @@ Integrations → GitHub, connect this repository with the working directory set
 to `.` and the production branch set to `main`. Every push to `main` that adds
 a migration is applied to the database.
 
-**By hand.** Open the SQL editor in the dashboard, paste the migration file in,
-and run it. Nothing else is needed — this is a perfectly good way to run it
-once and never think about it again.
+**By hand.** Open the SQL editor in the dashboard, paste in `setup.sql` — which
+is every migration concatenated in order — and run it. Nothing else is needed;
+this is a perfectly good way to do it once and never think about it again.
+
+`setup.sql` is generated from `migrations/`, so if you add a migration,
+regenerate it rather than editing it.
 
 Either way it is safe to run more than once: every statement is written
 `if not exists` or `create or replace`.
