@@ -24,6 +24,8 @@ In the left sidebar: **SQL Editor** → **New query**. Paste in each file from
 1. `20260906000000_initial_schema.sql` — tables, seats, policies
 2. `20260906120000_partner_verification.sql` — evidence, and the rule that
    you cannot confirm your own work
+3. `20260906140000_diagnostics.sql` — what Test connection asks, and the
+   function that claims a seat added after signup
 
 *Or*, if you have connected this repository under **Integrations → GitHub**
 with the working directory `.` and the production branch `main`, the migration
@@ -96,12 +98,28 @@ within about twenty seconds.
 
 ## If something is wrong
 
+**Press "Test connection" first.** It is on the sign-in screen, on the
+locked-out screen, and in Settings → Connection. It asks the database directly
+and tells you which of these it is, rather than leaving you to guess:
+
+- the URL is wrong, or the project is paused
+- the anon key was rejected
+- the migrations have not been run
+- your email has no seat — and it prints the exact SQL, with your address
+  already in it
+
+**A seat added after you signed up now works.** The seat is handed out by a
+trigger when the account is created, so adding one afterwards used to leave you
+with a login and no membership. The app now claims it for you on the next load,
+or immediately if you press **Check again**. You no longer have to delete the
+user and start over.
+
+
 **"No seat for this account"** — the email you signed up with is not in
 `seats`. Check for a typo, add it, then sign out and back in.
 
-**Everything is empty after signing in** — same cause. The trigger only runs
-when the account is *created*, so adding a seat afterwards means you need to
-delete the user under **Authentication → Users** and sign up again.
+**Everything is empty after signing in** — usually the seat. Run Test
+connection; if it says there is no seat, add it and press Check again.
 
 **The pill says Offline** — the URL is wrong, or the project is paused.
 Supabase pauses free projects after a week with no requests; the dashboard has

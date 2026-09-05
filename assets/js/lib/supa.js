@@ -135,4 +135,10 @@ export const db = {
   },
 };
 
+/** Call a database function. */
+export async function rpc(name, args = {}) {
+  await ensureFresh();
+  return call('/rest/v1/rpc/' + name, { method: 'POST', body: args });
+}
+
 export function online() { return navigator.onLine !== false; }

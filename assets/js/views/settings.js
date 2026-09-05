@@ -10,6 +10,7 @@ import { BUILD } from '../version.js';
 import { THEMES, FONTS, DENSITIES, RADII, WIDGETS, applyTheme, widgetSequence } from '../theme.js';
 import * as D from '../domain.js';
 import { sectionHead, refresh, avatar } from './parts.js';
+import { runDiagnostics } from './diagnose.js';
 
 const ACCENTS = ['#E2C044', '#E0724F', '#D8577A', '#B07CD8', '#6F8FE0',
                  '#4FB3A6', '#6FB25E', '#C9A227', '#8E9099', '#E85D75'];
@@ -255,7 +256,10 @@ function connection() {
         h('span.meta', { text: m.role }),
         m.id === state.me.id ? h('span.pill', { text: 'you' }) : null,
       ])))),
-      h('button.ghost.small', { text: 'Sync now', onclick: () => { pull(); toast('Syncing…', 'ok'); } }),
+      h('div.btnrow', {}, [
+        h('button.ghost.small', { text: 'Sync now', onclick: () => { pull(); toast('Syncing…', 'ok'); } }),
+        h('button.ghost.small', { text: 'Test connection', onclick: runDiagnostics }),
+      ]),
       state.sync.rejected.length ? h('div.rejected', {}, [
         h('p.warnline', { text: `${state.sync.rejected.length} change${state.sync.rejected.length === 1 ? '' : 's'} the server refused:` }),
         ...state.sync.rejected.slice(0, 5).map((r) => h('p.meta', { text: `${r.table} · ${r.reason}` })),
@@ -268,6 +272,7 @@ function connection() {
     h('p.meta', { text: 'Point it at a Supabase project and the two of you share one set of data. The setup is in SETUP.md — it takes about five minutes and costs nothing.' }),
     h('div.btnrow', {}, [
       h('button.primary', { text: 'Connect a backend', onclick: connectSheet }),
+      h('button.ghost', { text: 'Test connection', onclick: runDiagnostics }),
     ]),
   ];
 }

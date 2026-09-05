@@ -104,8 +104,22 @@ export async function boot() {
     state.me = state.db.members.find((m) => m.id === user.id) || null;
     state.ready = true;
     notify();
-    const fetched = await pull();       // cache first, network second
+    let fetched = await pull();         // cache first, network second
     state.me = state.db.members.find((m) => m.id === user.id) || null;
+
+    // A seat is handed out by a trigger when the account is created, so
+    // adding one afterwards leaves a real login with no membership. Rather
+    // than tell someone to delete their account and start again, take it now.
+    if (!state.me && fetched) {
+      try {
+        const r = await supa.rpc('claim_seat');
+        if (r?.ok) {
+          fetched = await pull();
+          state.me = state.db.members.find((m) => m.id === user.id) || null;
+        }
+      } catch { /* older schema, no such function — fall through to noSeat */ }
+    }
+
     // Only a successful read proves there is no seat. Signing in on a train
     // must not look like being thrown out.
     state.noSeat = !state.me && fetched;

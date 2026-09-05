@@ -3,6 +3,7 @@
 import { h, toast } from '../ui.js';
 import { state, signIn, signUp, signOut } from '../store.js';
 import { backend, setBackend } from '../config.js';
+import { runDiagnostics } from './diagnose.js';
 import * as supa from '../lib/supa.js';
 import { refresh } from './parts.js';
 
@@ -147,10 +148,23 @@ function noSeatScreen() {
   return h('div.authwrap', {}, h('div.authcard', {}, [
     h('div.brandbig', {}, [h('i'), h('span', { text: 'Tandem' })]),
     h('h1', { text: 'No seat for this account' }),
-    h('p.lede', { text: `You are signed in as ${supa.currentUser()?.email || 'this account'}, but that email is not in the seats table, so there is nothing to show you.` }),
-    h('p.meta', { text: "Add it in the Supabase SQL editor:" }),
+    h('p.lede', { text: `You are signed in as ${supa.currentUser()?.email || 'this account'}, but the database is not showing you as a member. Usually that means this email has no seat — press Test connection below and it will say for certain.` }),
+    h('p.meta', { text: 'If it is the seat, add it in the Supabase SQL editor:' }),
     h('pre.code', { text: "insert into seats (email, role, display_name)\nvalues ('you@example.com', 'student', 'Your name');" }),
-    h('p.meta', { text: 'Then sign out and back in.' }),
-    h('button.ghost.full', { text: 'Sign out', onclick: signOut }),
+    h('p.meta', { text: 'Then press this — no need to sign out or start again.' }),
+    h('button.primary.full', {
+      text: 'Check again',
+      onclick: async () => {
+        try {
+          const r = await supa.rpc('claim_seat');
+          if (r?.ok) { location.reload(); return; }
+          toast(r?.reason || 'Still no seat for this email', 'warn', 5000);
+        } catch (e) {
+          toast(e.message, 'warn', 5000);
+        }
+      },
+    }),
+    h('button.ghost.full', { text: 'Test connection', onclick: runDiagnostics }),
+    h('button.link', { text: 'Sign out', onclick: signOut }),
   ]));
 }
