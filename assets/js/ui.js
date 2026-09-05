@@ -161,6 +161,44 @@ function field(f, values, onInput) {
       }, h('i'));
       break;
 
+    case 'photo': {
+      const wrap = h('div.photo');
+      const preview = h('div.shot');
+      const paint = () => {
+        preview.replaceChildren();
+        if (values[f.name]) {
+          preview.append(
+            h('img', { src: values[f.name], alt: 'The photo you attached' }),
+            h('button.x', { type: 'button', title: 'Remove', text: '✕',
+              onclick: () => { set(''); paint(); } }));
+        }
+      };
+      const picker = h('input', {
+        type: 'file', accept: 'image/*', capture: 'environment',
+        onchange: async (e) => {
+          const file = e.target.files?.[0];
+          e.target.value = '';
+          if (!file) return;
+          wrap.classList.add('busy');
+          try {
+            set(await f.shrink(file));
+            paint();
+          } catch (err) {
+            toast(err.message, 'warn');
+          } finally {
+            wrap.classList.remove('busy');
+          }
+        },
+      });
+      wrap.append(preview, h('label.pickshot', {}, [
+        h('span', { text: values[f.name] ? 'Choose a different photo' : 'Take or choose a photo' }),
+        picker,
+      ]));
+      input = wrap;
+      paint();
+      break;
+    }
+
     case 'color':
       input = h('input', {
         id, type: 'color', value: values[f.name] || '#E2C044',
@@ -186,7 +224,7 @@ function field(f, values, onInput) {
 
   // A chip set is a row of buttons; squeezed into half a column it wraps into
   // a tower, so it always gets the full width.
-  const wide = f.wide || f.type === 'chips' || f.type === 'textarea';
+  const wide = f.wide || f.type === 'chips' || f.type === 'textarea' || f.type === 'photo';
   return h('label.field' + (f.type === 'toggle' ? '.row' : '') + (wide ? '.wide' : ''), { for: id }, [
     h('span.flabel', { text: f.label }),
     input,

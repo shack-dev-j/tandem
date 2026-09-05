@@ -58,6 +58,7 @@ export const RADII = [
 ];
 
 export const WIDGETS = {
+  review: 'Waiting on you',
   checklist: "Today's homework",
   goals: 'Goals',
   tasks: 'Tasks due',
@@ -141,12 +142,21 @@ export function applyTheme(member) {
   meta.content = t.v.bg;
 }
 
-/** Which widgets to show on the home screen, in the order chosen. */
-export function widgetOrder(member) {
-  const p = prefs(member);
-  const hidden = new Set(p.hidden || []);
+/** Every widget in the order chosen, switched off ones included.
+ *  Hiding one must not move it: you turn a card off, change your mind, turn it
+ *  back on, and it should still be where you left it. */
+export function widgetSequence(member) {
   const known = Object.keys(WIDGETS);
-  const ordered = (p.widgets || []).filter((w) => known.includes(w));
-  for (const w of known) if (!ordered.includes(w)) ordered.push(w);
-  return ordered.filter((w) => !hidden.has(w));
+  const ordered = (prefs(member).widgets || []).filter((w) => known.includes(w));
+  // A card added in a later version slots in where it was designed to go,
+  // not at the bottom. Appending would bury it under a saved order made
+  // before it existed, and the reader would never find out it was there.
+  known.forEach((w, i) => { if (!ordered.includes(w)) ordered.splice(i, 0, w); });
+  return ordered;
+}
+
+/** Just the ones to draw. */
+export function widgetOrder(member) {
+  const hidden = new Set(prefs(member).hidden || []);
+  return widgetSequence(member).filter((w) => !hidden.has(w));
 }

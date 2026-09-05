@@ -8,7 +8,7 @@ import { widgetOrder, WIDGETS } from '../theme.js';
 import * as D from '../domain.js';
 import * as A from '../actions.js';
 import { subjectRow, carryGroup, taskRow, goalCard, sectionHead, avatar,
-         celebrate, refresh } from './parts.js';
+         celebrate, refresh, reviewList, reviewCount, firstNameOf } from './parts.js';
 
 const WIDE = new Set(['checklist']);
 
@@ -26,6 +26,7 @@ export function home() {
   const pct = subjects.length ? Math.round(((subjects.length - remaining) / subjects.length) * 100) : 0;
 
   const build = {
+    review: () => (reviewCount() ? reviewWidget() : null),
     checklist: () => checklist({ me, date, day, isToday, subjects, done, back, remaining, pct }),
     goals: () => goalsWidget(me),
     tasks: () => tasksWidget(me),
@@ -56,6 +57,20 @@ export function home() {
   ];
 }
 
+function sendEverything(me, day, back) {
+  const days = [day, ...back.map((g) => g.date)];
+  let n = 0;
+  for (const d of days) {
+    for (const s of D.pendingOn(me.id, D.parseDay(d))) {
+      if (D.evidenceFor(me.id, { subjectId: s.id, date: d })) continue;
+      A.submitEvidence({ subjectId: s.id, date: d });
+      n += 1;
+    }
+  }
+  toast(n ? `${n} sent to ${firstNameOf(partner())}` : 'Everything is already sent', 'ok');
+  refresh();
+}
+
 function summary(total, doneCount, behind) {
   const bits = [`${total} subject${total === 1 ? '' : 's'}`,
                 `${doneCount} done`,
@@ -78,17 +93,24 @@ function checklist({ me, date, day, subjects, done, back, remaining, pct }) {
       ring(pct, 54, 5),
       h('div.pgtext', {}, [
         h('div.pgtitle', { text: 'Homework for ' + D.DAY_NAMES[D.dow(date)] }),
-        h('div.pgsub', { text: `${subjects.length - remaining} of ${subjects.length} ticked off` }),
+        h('div.pgsub', {
+          text: partner()
+            ? `${subjects.length - remaining} of ${subjects.length} confirmed by ${firstNameOf(partner())}`
+            : `${subjects.length - remaining} of ${subjects.length} ticked off`,
+        }),
       ]),
       h('div.pgacts', {}, [
-        outstanding ? h('button.primary', {
-          text: `Check all (${outstanding})`,
-          onclick: () => {
-            const res = A.checkAll(me.id, day, true);
-            celebrate(res, 'you');
-            refresh();
-          },
-        }) : h('span.alldone', { text: 'All clear' }),
+        outstanding
+          ? (partner()
+              ? h('button.ghost', {
+                  text: `Send all ${outstanding} to ${firstNameOf(partner())}`,
+                  onclick: () => sendEverything(me, day, back),
+                })
+              : h('button.primary', {
+                  text: `Check all (${outstanding})`,
+                  onclick: () => { celebrate(A.checkAll(me.id, day, true), 'you'); refresh(); },
+                }))
+          : h('span.alldone', { text: 'All clear' }),
       ]),
     ]),
 
@@ -99,6 +121,15 @@ function checklist({ me, date, day, subjects, done, back, remaining, pct }) {
 }
 
 // ------------------------------------------------------------------ widgets
+
+function reviewWidget() {
+  const n = reviewCount();
+  return [
+    sectionHead('Waiting on you', h('span.pill.wait', { text: String(n) })),
+    h('p.meta', { text: 'Your partner has finished these and needs you to confirm.' }),
+    reviewList({ compact: true }),
+  ];
+}
 
 function goalsWidget(me) {
   const goals = D.goalsOf(me.id).slice(0, 3);

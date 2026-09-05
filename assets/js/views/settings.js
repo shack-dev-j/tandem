@@ -6,7 +6,7 @@ import { h, toast, confirmSheet, formSheet } from '../ui.js';
 import { state, savePrefs, signOut, patch, pull } from '../store.js';
 import { setBackend, backend } from '../config.js';
 import * as supa from '../lib/supa.js';
-import { THEMES, FONTS, DENSITIES, RADII, WIDGETS, applyTheme, widgetOrder } from '../theme.js';
+import { THEMES, FONTS, DENSITIES, RADII, WIDGETS, applyTheme, widgetSequence } from '../theme.js';
 import * as D from '../domain.js';
 import { sectionHead, refresh, avatar } from './parts.js';
 
@@ -89,7 +89,7 @@ export function settings() {
       ]),
 
       card('Home screen', [
-        h('p.meta', { text: 'Drag to reorder. Switch off anything you do not want to see.' }),
+        h('p.meta', { text: 'Drag a row, or use the arrows. Switch off anything you do not want.' }),
         widgetList(p),
       ]),
 
@@ -179,31 +179,34 @@ function toggle(label, on, onSet) {
   ]);
 }
 
-/** Drag-to-reorder, with a keyboard path because dragging on a phone is
- *  miserable. */
+/** Drag to reorder, with arrows as well — dragging on a phone is miserable,
+ *  and a control you can only reach by dragging is one that does not work. */
 function widgetList(p) {
-  const order = [...widgetOrder(state.me), ...(p.hidden || [])]
-    .filter((w, i, a) => WIDGETS[w] && a.indexOf(w) === i);
+  const order = widgetSequence(state.me);
   const hidden = new Set(p.hidden || []);
   const list = h('div.widgets');
 
   const commit = (next) => set({ widgets: next, hidden: [...hidden] });
+  const move = (i, to) => {
+    if (to < 0 || to >= order.length) return;
+    const n = [...order];
+    [n[i], n[to]] = [n[to], n[i]];
+    commit(n);
+  };
 
   order.forEach((key, i) => {
     const off = hidden.has(key);
     list.append(h('div.widget' + (off ? '.off' : ''), { draggable: 'true', dataset: { key } }, [
-      h('span.drag', { text: '⠿' }),
+      h('span.grip', { 'aria-hidden': 'true' }),
+      h('span.wnum', { text: off ? '—' : String(i + 1 - [...order.slice(0, i)].filter((k) => hidden.has(k)).length) }),
       h('span.wname', { text: WIDGETS[key] }),
-      h('button.icon', {
-        title: 'Move up', text: '↑', disabled: i === 0,
-        onclick: () => { const n = [...order]; [n[i - 1], n[i]] = [n[i], n[i - 1]]; commit(n); },
-      }),
-      h('button.icon', {
-        title: 'Move down', text: '↓', disabled: i === order.length - 1,
-        onclick: () => { const n = [...order]; [n[i + 1], n[i]] = [n[i], n[i + 1]]; commit(n); },
-      }),
+      h('span.wmove', {}, [
+        h('button.step', { title: 'Move up', text: '↑', disabled: i === 0, onclick: () => move(i, i - 1) }),
+        h('button.step', { title: 'Move down', text: '↓', disabled: i === order.length - 1, onclick: () => move(i, i + 1) }),
+      ]),
       h('button.switch.small' + (off ? '' : '.on'), {
-        title: off ? 'Show' : 'Hide',
+        title: off ? 'Show this card' : 'Hide this card',
+        'aria-pressed': String(!off),
         onclick: () => {
           if (off) hidden.delete(key); else hidden.add(key);
           commit(order);

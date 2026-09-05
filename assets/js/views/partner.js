@@ -5,7 +5,8 @@ import { h, bar, ring, empty, formSheet, toast } from '../ui.js';
 import { state, partner } from '../store.js';
 import * as D from '../domain.js';
 import * as A from '../actions.js';
-import { subjectRow, carryGroup, goalCard, taskRow, sectionHead, avatar, refresh } from './parts.js';
+import { subjectRow, carryGroup, goalCard, taskRow, sectionHead, avatar, refresh,
+         reviewList, reviewCount } from './parts.js';
 import { editGoal } from './goals.js';
 import { editTask } from './tasks.js';
 
@@ -61,14 +62,20 @@ export function partnerView() {
     ]),
 
     h('div.grid', {}, [
+      reviewCount() ? h('section.w.wide', {}, [
+        sectionHead('Sent for you to check', h('span.pill.wait', { text: String(reviewCount()) })),
+        reviewList(),
+      ]) : null,
+
       h('section.w.wide', {}, [
         sectionHead(`${firstName(them)}'s homework — ${D.fmtDay(date)}`),
+        h('p.meta', { text: `You are the one who confirms these. Tick anything ${firstName(them)} has actually done.` }),
         subs.length
-          ? h('div.rows', {}, subs.map((s) => subjectRow(them.id, s, date, { readonly: true })))
+          ? h('div.rows', {}, subs.map((s) => subjectRow(them.id, s, date)))
           : empty('No lessons', 'Nothing on their timetable for this day.'),
-        ...back.map((g) => carryGroup(them.id, g, { readonly: true })),
+        ...back.map((g) => carryGroup(them.id, g)),
         behind
-          ? h('p.warnline', { text: `${behind} subject${behind === 1 ? '' : 's'} have been carried over. Only ${firstName(them)} can tick these off.` })
+          ? h('p.warnline', { text: `${behind} subject${behind === 1 ? '' : 's'} carried over.` })
           : null,
       ]),
 

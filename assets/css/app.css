@@ -437,24 +437,56 @@ section.w.wide { grid-column: 1 / -1; }
 .acdot.custom { position: relative; overflow: hidden; background: conic-gradient(#E0724F, #E2C044, #6FB25E, #4FB3A6, #6F8FE0, #B07CD8, #E0724F); display: block; }
 .acdot.custom input { position: absolute; inset: -6px; opacity: 0; cursor: pointer; }
 
-.widgets { display: flex; flex-direction: column; gap: 5px; }
+.widgets { display: flex; flex-direction: column; gap: 4px; }
 .widget {
-  display: flex; align-items: center; gap: 9px; padding: 8px 10px;
-  border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--panel2);
-  cursor: grab;
+  display: flex; align-items: center; gap: 9px;
+  height: 40px; padding: 0 8px 0 6px;
+  border: 1px solid transparent; border-radius: var(--r-sm);
+  background: var(--panel2); cursor: grab;
+  transition: border-color .13s, background .13s;
 }
-.widget.dragging { opacity: .4; }
-.widget.off { opacity: .5; }
-.widget .drag { color: var(--faint); cursor: grab; }
-.wname { flex: 1; font-size: 13px; }
+.widget:hover { border-color: var(--line); }
+.widget.dragging { opacity: .45; border: 1px dashed var(--ac-line); cursor: grabbing; }
 
-.switch { width: 38px; height: 22px; border-radius: 99px; background: var(--hair2); padding: 3px; flex: none; transition: background .16s; }
-.switch i { display: block; width: 16px; height: 16px; border-radius: 50%; background: var(--dim); transition: transform .16s, background .16s; }
-.switch.on { background: var(--ac); }
-.switch.on i { transform: translateX(16px); background: var(--on-ac); }
-.switch.small { width: 32px; height: 19px; }
-.switch.small i { width: 13px; height: 13px; }
-.switch.small.on i { transform: translateX(13px); }
+/* A grip drawn as dots rather than a braille glyph, which renders as noise in
+   half the fonts this app can be set to. */
+.grip {
+  width: 11px; height: 15px; flex: none; color: var(--faint);
+  background-image: radial-gradient(currentColor 1.05px, transparent 1.15px);
+  background-size: 5px 5px; background-position: 1px 2px;
+  opacity: .55; transition: opacity .13s;
+}
+.widget:hover .grip { opacity: 1; }
+.wnum { font: 500 10px var(--mono); color: var(--faint); width: 11px; flex: none; text-align: center; }
+.wname { flex: 1; font-size: 13px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.widget.off .wname, .widget.off .wnum { color: var(--dim); }
+.widget.off .grip { opacity: .25; }
+
+/* The two arrows read as one control, so they sit together and away from the
+   switch, which does something entirely different. */
+.wmove { display: flex; gap: 1px; flex: none; }
+.step {
+  width: 21px; height: 21px; border-radius: var(--r-sm);
+  display: grid; place-items: center; font-size: 11px; line-height: 1;
+  color: var(--muted); transition: background .12s, color .12s;
+}
+.step:hover:not(:disabled) { background: var(--hair2); color: var(--text); }
+.step:disabled { color: var(--faint); opacity: .3; cursor: default; }
+
+.switch {
+  width: 34px; height: 20px; border-radius: 99px; padding: 2px; flex: none;
+  background: var(--hair2); box-shadow: inset 0 0 0 1px var(--line);
+  transition: background .16s, box-shadow .16s;
+}
+.switch i {
+  display: block; width: 16px; height: 16px; border-radius: 50%;
+  background: var(--dim); transition: transform .16s, background .16s;
+}
+.switch.on { background: var(--ac); box-shadow: inset 0 0 0 1px var(--ac); }
+.switch.on i { transform: translateX(14px); background: var(--on-ac); }
+.switch.small { width: 30px; height: 18px; }
+.switch.small i { width: 14px; height: 14px; }
+.switch.small.on i { transform: translateX(12px); }
 
 .you { display: flex; align-items: center; gap: 12px; }
 .you .grow { flex: 1; min-width: 0; }
@@ -628,3 +660,71 @@ select { appearance: none; background-image: linear-gradient(45deg, transparent 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+
+/* ------------------------------------------------- sending and confirming */
+
+/* A row of your own that is with your partner: the tick is not yours to press,
+   so it reads as a state rather than a control. */
+ /* Your own tick is not a disabled button so much as a different kind of
+    thing: a slot waiting for someone else to fill it. Dashed says that; a
+    greyed-out circle just looks broken. */
+.tick:disabled { cursor: default; border-style: dashed; border-color: var(--line2); opacity: .65; }
+.tick:disabled:hover { border-color: var(--line2); }
+/* Confirmed is confirmed — it should not go dashed just because the button
+   under it is no longer yours to press. */
+.tick.on:disabled { border-style: solid; opacity: 1; }
+.tick.sent, .tick.sent:disabled { border-style: dashed; border-color: var(--ac); opacity: 1; }
+.tick.sent::after { content: '·'; color: var(--ac); font-size: 18px; line-height: 0; }
+.subrow.pending { border-left-color: var(--ac); }
+.substate.wait { color: var(--ac); }
+.pill.wait { color: var(--ac); border-color: var(--ac-line); }
+
+.send {
+  font: 500 10px var(--mono); letter-spacing: .06em; text-transform: uppercase;
+  padding: 4px 9px; border-radius: 99px; flex: none;
+  border: 1px solid var(--line2); color: var(--muted);
+  transition: all .13s;
+}
+.send:hover { border-color: var(--ac); color: var(--ac); }
+.send.on { border-color: var(--ac-line); color: var(--ac); background: var(--ac-soft); }
+
+.review {
+  border: 1px solid var(--line); border-left: 2px solid var(--ac);
+  border-radius: var(--r); background: var(--panel2); padding: 12px 14px;
+  display: flex; flex-direction: column; gap: 9px;
+}
+.reviewtop { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.reviewwhat { font-weight: 500; }
+.reviewnote { margin: 0; font-size: 12.5px; color: var(--soft); white-space: pre-wrap; }
+.reviewacts { display: flex; gap: 7px; }
+.shotlink { display: block; padding: 0; border-radius: var(--r-sm); overflow: hidden; border: 1px solid var(--line); }
+.shotlink img { display: block; width: 100%; max-height: 220px; object-fit: cover; }
+.shotlink:hover { border-color: var(--ac-line); }
+
+.lightbox {
+  position: fixed; inset: 0; z-index: 300; display: grid; place-items: center; gap: 14px;
+  padding: 24px; background: rgba(0, 0, 0, .88); cursor: zoom-out;
+  align-content: center; animation: fadeIn .16s ease both;
+}
+.lightbox img { max-width: 100%; max-height: 82dvh; border-radius: var(--r); }
+.lightbox .meta { color: rgba(255, 255, 255, .55); }
+
+/* The photo picker inside the evidence sheet. */
+.photo { display: flex; flex-direction: column; gap: 8px; }
+.photo.busy { opacity: .5; pointer-events: none; }
+.shot { position: relative; }
+.shot:empty { display: none; }
+.shot img { display: block; width: 100%; max-height: 260px; object-fit: contain;
+            border-radius: var(--r-sm); background: var(--field); }
+.shot .x {
+  position: absolute; top: 6px; right: 6px; width: 26px; height: 26px;
+  border-radius: 50%; background: rgba(0,0,0,.62); color: #fff; font-size: 12px;
+}
+.pickshot {
+  display: flex; align-items: center; justify-content: center;
+  min-height: 46px; padding: 10px; cursor: pointer;
+  border: 1px dashed var(--line2); border-radius: var(--r-sm);
+  color: var(--muted); font-size: 12.5px; transition: all .13s;
+}
+.pickshot:hover { border-color: var(--ac); color: var(--ac); }
+.pickshot input { position: absolute; width: 1px; height: 1px; opacity: 0; }

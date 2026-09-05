@@ -2,19 +2,25 @@
 
 **[shack-dev-j.github.io/tandem](https://shack-dev-j.github.io/tandem/)**
 
-A homework and goal tracker built for exactly two people. One of you does the
-work; the other can see how it is actually going, set goals, and say something
-about it.
+A homework and goal tracker built for exactly two people who keep each other
+honest. You do not tick your own work off. You do it, you hand it over, and
+the other one decides whether it counts.
 
 Static site — no build step, no framework, no dependencies. It runs from a
 folder of files, which is why it can live on GitHub Pages for nothing.
 
 ## What it does
 
-**Today** — every subject you had lessons in today, ticked off as you do the
-homework. Anything you never ticked rolls onto the next day's list under
-*Still from Thursday*, in red, and keeps rolling until you deal with it.
-Nothing quietly falls off.
+**Today** — every subject you had lessons in today. Finish the homework, then
+send it over: a note, a photo of the page, or nothing at all if you would
+rather just show them. Your partner is the one who confirms it. Anything still
+unconfirmed rolls onto the next day's list under *Still from Thursday*, in red,
+and keeps rolling. Nothing quietly falls off.
+
+**Waiting on you** — the other half. What your partner has sent across, with
+their photo if they took one, and two buttons: *Confirm* or *Not yet*.
+Confirming is what actually marks the work done and pays out the XP — to them,
+never to you.
 
 **Goals** — a target plus a log of what you actually did against it. One-off
 ("finish 8 past papers by December"), or repeating daily, weekly or monthly,
@@ -26,10 +32,9 @@ priorities.
 
 **Timetable** — the week grid. Click any cell to change it.
 
-**Partner** — the other half. Their day, their carried-over backlog, their
-goals, a 14-day chart, and a private thread between the two of you. You can set
-goals and write tasks for them; you cannot tick their homework off, because
-then the record would be worth nothing.
+**Partner** — their day, their carried-over backlog, their goals, a 14-day
+chart, everything they have sent you to check, and a private thread between the
+two of you. This is where you tick their homework off.
 
 **Progress** — level, XP, where the XP came from, which subjects you actually
 keep on top of, and 14 achievements.
@@ -101,7 +106,7 @@ assets/js/
   seed.js                 the starter timetable
   views/                  one file per screen
   app.js                  routing and boot
-supabase/migrations/      the entire backend, in one file
+supabase/migrations/      the entire backend
 ```
 
 ## Making it yours

@@ -3,7 +3,7 @@
 // Split out from the store so the store stays a dumb pipe and the rules for
 // what earns what live in one readable place.
 
-import { state, insert, patch, remove, uuid, stableId, canWrite } from './store.js';
+import { state, insert, patch, remove, uuid, stableId, canVerify } from './store.js';
 import * as D from './domain.js';
 
 const nowIso = () => new Date().toISOString();
@@ -14,7 +14,7 @@ const nowIso = () => new Date().toISOString();
  *  Un-ticking and re-ticking must not print money, so the key is derived
  *  from what was done, not from when. */
 export function award(ownerId, source, base, key) {
-  if (ownerId !== state.me?.id) return 0;      // you cannot earn on someone else's behalf
+  // XP is written by whoever confirmed the work, on behalf of whoever did it.
   if (key && state.db.xp_events.some((e) => e.owner_id === ownerId && e.note === key)) return 0;
   const amount = Math.round(base * D.multiplier(ownerId));
   if (amount <= 0) return 0;
@@ -26,7 +26,7 @@ export function award(ownerId, source, base, key) {
 }
 
 export function syncAchievements(ownerId) {
-  if (ownerId !== state.me?.id || !D.hasActivity(ownerId)) return [];
+  if (!D.hasActivity(ownerId)) return [];
   const won = [];
   for (const a of D.ACHIEVEMENTS) {
     const key = `achv:${a.key}`;
@@ -50,7 +50,7 @@ export function unlocked(ownerId) {
 
 /** Tick a subject off for the day its homework was set. */
 export function toggleCheck(ownerId, subjectId, date, on) {
-  if (!canWrite('hw_checks', ownerId)) return { xp: 0, blocked: true };
+  if (!canVerify(ownerId)) return { xp: 0, blocked: true };
   const day = typeof date === 'string' ? date : D.iso(date);
   const existing = state.db.hw_checks.find(
     (c) => c.owner_id === ownerId && c.subject_id === subjectId && c.date === day);
@@ -78,7 +78,7 @@ export function toggleCheck(ownerId, subjectId, date, on) {
 
 /** Clear a day, and optionally everything still owed from before it. */
 export function checkAll(ownerId, date, includeCarried = true) {
-  if (!canWrite('hw_checks', ownerId)) return { xp: 0, blocked: true };
+  if (!canVerify(ownerId)) return { xp: 0, blocked: true };
   let xp = 0;
   const days = [{ date: typeof date === 'string' ? date : D.iso(date) }];
   if (includeCarried) {
@@ -111,8 +111,11 @@ export function addTask(ownerId, fields) {
 export function toggleTask(id, done) {
   const t = state.db.tasks.find((x) => x.id === id);
   if (!t) return { xp: 0 };
+  // Finishing is someone else's call; reopening is anyone's, so a mistake is
+  // always undoable by whoever spots it.
+  if (done && !canVerify(t.owner_id)) return { xp: 0, blocked: true };
   patch('tasks', id, { done, done_at: done ? nowIso() : null });
-  if (!done || t.owner_id !== state.me?.id) return { xp: 0 };
+  if (!done) return { xp: 0 };
 
   const p = D.prefs();
   let xp = award(t.owner_id, 'task', p.xp.task, `task:${id}`);
@@ -152,7 +155,7 @@ export function deleteGoal(id) {
 /** Record progress. A goal is a log of what you did, not a number you set,
  *  so the chart and the streak are both real. */
 export function logGoal(goal, amount, note = '', date = D.iso()) {
-  if (!canWrite('goal_log', goal.owner_id)) return { xp: 0, blocked: true };
+  if (!canVerify(goal.owner_id)) return { xp: 0, blocked: true };
   const before = D.goalProgress(goal).complete;
   insert('goal_log', {
     id: uuid(), goal_id: goal.id, owner_id: goal.owner_id,
@@ -218,4 +221,72 @@ export function setLesson(ownerId, dow, period, fields) {
   }
   if (existing) return patch('lessons', existing.id, fields);
   return insert('lessons', { id: uuid(), owner_id: ownerId, dow, period, ...fields });
+}
+
+// ------------------------------------------------------------- evidence
+
+/** Shrink a photo before it is stored.
+ *  A phone camera JPEG is several megabytes; a legible picture of a page of
+ *  working is a couple of hundred kilobytes, and that is what travels. */
+export function shrinkImage(file, maxSide = 1400, targetBytes = 320_000) {
+  return new Promise((resolve, reject) => {
+    if (!file || !file.type.startsWith('image/')) { reject(new Error('That is not an image')); return; }
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Could not read that file'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('Could not decode that image'));
+      img.onload = () => {
+        const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+        const c = document.createElement('canvas');
+        c.width = Math.round(img.width * scale);
+        c.height = Math.round(img.height * scale);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        let q = 0.78;
+        let out = c.toDataURL('image/jpeg', q);
+        while (out.length > targetBytes && q > 0.35) {
+          q -= 0.12;
+          out = c.toDataURL('image/jpeg', q);
+        }
+        resolve(out);
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+/** Hand something over for your partner to check. */
+export function submitEvidence({ subjectId = null, taskId = null, goalId = null,
+                                 date = D.iso(), note = '', image = '' }) {
+  if (!state.me) return null;
+  const existing = D.evidenceFor(state.me.id, { subjectId, taskId, goalId, date });
+  if (existing) {
+    return patch('evidence', existing.id, { note, image: image || existing.image });
+  }
+  return insert('evidence', {
+    id: uuid(), owner_id: state.me.id,
+    subject_id: subjectId, task_id: taskId, goal_id: goalId,
+    date, note, image, created_at: nowIso(), reviewed_at: null, reviewed_by: null,
+  });
+}
+
+export function withdrawEvidence(id) { remove('evidence', id); }
+
+/** Confirm or turn down what your partner sent over.
+ *  Approving is what actually marks the work done — the evidence row is only
+ *  the request. */
+export function reviewEvidence(ev, approve) {
+  if (ev.owner_id === state.me?.id) return { blocked: true };
+  patch('evidence', ev.id, { reviewed_at: nowIso(), reviewed_by: state.me.id });
+  if (!approve) return { xp: 0, declined: true };
+
+  let res = { xp: 0 };
+  if (ev.subject_id) res = toggleCheck(ev.owner_id, ev.subject_id, ev.date, true);
+  else if (ev.task_id) res = toggleTask(ev.task_id, true);
+  else if (ev.goal_id) {
+    const g = state.db.goals.find((x) => x.id === ev.goal_id);
+    if (g) res = logGoal(g, Number(ev.note) || 1, 'confirmed', ev.date);
+  }
+  return res;
 }

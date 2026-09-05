@@ -1,7 +1,7 @@
 // Pieces that show up on more than one screen.
 
-import { h, bar, toast, xpToast, confirmSheet } from '../ui.js';
-import { state, memberById } from '../store.js';
+import { h, bar, toast, xpToast, confirmSheet, formSheet } from '../ui.js';
+import { state, memberById, partner, canVerify, needsPartner } from '../store.js';
 import * as D from '../domain.js';
 import * as A from '../actions.js';
 
@@ -16,26 +16,37 @@ export function celebrate(res, what) {
 
 // --------------------------------------------------------------- checklist
 
-/** One subject on the homework checklist. `late` marks work carried over
- *  from an earlier day, which is the whole point of the carry-over. */
+/** One subject on the homework checklist.
+ *
+ *  Whose row it is decides what you can do with it. Your own you can only send
+ *  over; your partner's you can confirm. `late` marks work carried over from an
+ *  earlier day.
+ */
 export function subjectRow(ownerId, s, date, { late = false, readonly = false } = {}) {
-  const day = typeof date === 'string' ? date : D.iso(date);
+  const day = typeof date === 'string' ? date : D.iso(day0(date));
   const done = D.checkedOn(ownerId, D.parseDay(day)).has(s.id);
+  const mine = needsPartner(ownerId);
+  const sent = D.evidenceFor(ownerId, { subjectId: s.id, date: day });
   const tasks = D.own('tasks', ownerId)
     .filter((t) => t.subject_id === s.id && !t.done)
     .slice(0, 3);
 
-  const tick = h('button.tick' + (done ? '.on' : ''), {
-    'aria-label': (done ? 'Untick ' : 'Tick off ') + s.code,
-    disabled: readonly,
+  const canTick = !readonly && canVerify(ownerId);
+
+  const tick = h('button.tick' + (done ? '.on' : '') + (sent && !done ? '.sent' : ''), {
+    'aria-label': !canTick ? 'Only your partner can confirm this'
+      : done ? 'Reopen ' + s.code : 'Confirm ' + s.code + ' is done',
+    disabled: !canTick,
     onclick: () => {
       const res = A.toggleCheck(ownerId, s.id, day, !done);
-      celebrate(res, 'the person it belongs to');
+      if (res.blocked) { toast('Your partner confirms this one, not you', 'warn'); return; }
+      celebrate(res, 'your partner');
+      if (sent && !done) A.reviewEvidence(sent, false);   // the request is settled
       refresh();
     },
   }, done ? h('span', { text: '✓' }) : null);
 
-  return h('div.subrow' + (done ? '.done' : '') + (late ? '.late' : ''), {}, [
+  return h('div.subrow' + (done ? '.done' : '') + (late ? '.late' : '') + (sent && !done ? '.pending' : ''), {}, [
     tick,
     h('span.dot', { style: { background: s.color || 'var(--ac)' } }),
     h('div.subtext', {}, [
@@ -44,11 +55,61 @@ export function subjectRow(ownerId, s, date, { late = false, readonly = false } 
         tasks.map((t) => h('span.subtask', { text: t.title }))) : null,
     ]),
     h('span.subwhen', { text: s.lesson ? D.hhmm(s.lesson.start_min) : '' }),
-    h('span.substate' + (late ? '.warn' : ''), {
-      text: done ? 'Done' : late ? 'Still open' : 'To do',
+    mine && !done && !readonly
+      ? h('button.send' + (sent ? '.on' : ''), {
+          title: sent ? 'Change what you sent' : 'Send this over to be checked',
+          text: sent ? 'Sent' : 'Send',
+          onclick: () => askToCheck({ subjectId: s.id, date: day, label: s.name || s.code }),
+        })
+      : null,
+    h('span.substate' + (late && !done ? '.warn' : sent && !done ? '.wait' : ''), {
+      text: done ? 'Done'
+        : sent ? 'Waiting'
+        : late ? 'Still open'
+        : mine ? 'To do'
+        : 'Confirm',
     }),
   ]);
 }
+
+const day0 = (d) => (d instanceof Date ? d : new Date(d));
+
+/** The sheet for handing something over. Evidence is optional: showing your
+ *  partner the actual page is evidence, it just does not fit in a database. */
+export async function askToCheck({ subjectId = null, taskId = null, goalId = null,
+                                   date = D.iso(), label = '' }) {
+  const other = partner();
+  const existing = D.evidenceFor(state.me.id, { subjectId, taskId, goalId, date });
+
+  const out = await formSheet({
+    title: existing ? 'Update what you sent' : 'Ask ' + (other ? firstNameOf(other) : 'your partner') + ' to check',
+    submit: existing ? 'Update' : 'Send',
+    fields: [
+      { note: label + (date ? ' · ' + D.fmtDay(D.parseDay(date)) : '') },
+      { name: 'note', label: 'Anything to say', type: 'textarea', rows: 2,
+        placeholder: 'Optional — "left q7, will ask in class"' },
+      { name: 'image', label: 'Photo', type: 'photo', shrink: A.shrinkImage,
+        hint: 'Optional. A picture of the finished page is usually enough.' },
+    ],
+    values: { note: existing?.note || '', image: existing?.image || '' },
+    extra: existing ? h('button.linkdanger', {
+      type: 'button', text: 'Take it back',
+      onclick: () => {
+        A.withdrawEvidence(existing.id);
+        toast('Withdrawn', 'ok');
+        refresh();
+        document.querySelector('.overlay .x')?.click();
+      },
+    }) : null,
+  });
+  if (!out) return;
+
+  A.submitEvidence({ subjectId, taskId, goalId, date, note: out.note || '', image: out.image || '' });
+  toast(other ? `Sent to ${firstNameOf(other)}` : 'Saved — nobody to send it to yet', 'ok');
+  refresh();
+}
+
+export const firstNameOf = (m) => (m?.display_name || m?.email || '').split(/[\s@]/)[0] || 'them';
 
 export function carryGroup(ownerId, group, opts = {}) {
   return h('div.carry', {}, [
@@ -62,6 +123,8 @@ export function carryGroup(ownerId, group, opts = {}) {
 
 // -------------------------------------------------------------------- task
 
+const taskSent = (t) => D.evidenceFor(t.owner_id, { taskId: t.id, date: null });
+
 export function taskRow(t, { showOwner = false } = {}) {
   const subject = state.db.subjects.find((s) => s.id === t.subject_id);
   const today = D.iso();
@@ -70,9 +133,18 @@ export function taskRow(t, { showOwner = false } = {}) {
   const author = t.created_by && t.created_by !== t.owner_id ? memberById(t.created_by) : null;
 
   return h('div.task' + (t.done ? '.done' : '') + (overdue ? '.over' : ''), {}, [
-    h('button.tick' + (t.done ? '.on' : ''), {
-      'aria-label': t.done ? 'Reopen task' : 'Mark done',
-      onclick: () => { celebrate(A.toggleTask(t.id, !t.done)); refresh(); },
+    h('button.tick' + (t.done ? '.on' : '') + (taskSent(t) ? '.sent' : ''), {
+      'aria-label': !canVerify(t.owner_id) ? 'Only your partner can confirm this'
+        : t.done ? 'Reopen this task' : 'Confirm this is done',
+      disabled: !canVerify(t.owner_id),
+      onclick: () => {
+        const res = A.toggleTask(t.id, !t.done);
+        if (res.blocked) { toast('Your partner confirms this one, not you', 'warn'); return; }
+        celebrate(res, 'your partner');
+        const sent = taskSent(t);
+        if (sent && !t.done) A.reviewEvidence(sent, false);
+        refresh();
+      },
     }, t.done ? h('span', { text: '✓' }) : null),
     h('div.taskmain', {}, [
       h('div.tasktitle', { text: t.title }),
@@ -91,6 +163,13 @@ export function taskRow(t, { showOwner = false } = {}) {
       t.notes ? h('div.tasknotes', { text: t.notes }) : null,
     ]),
     h('div.taskacts', {}, [
+      !t.done && needsPartner(t.owner_id)
+        ? h('button.send' + (taskSent(t) ? '.on' : ''), {
+            title: 'Send this over to be checked',
+            text: taskSent(t) ? 'Sent' : 'Send',
+            onclick: () => askToCheck({ taskId: t.id, label: t.title }),
+          })
+        : null,
       h('button.icon', { title: 'Edit', text: '✎', onclick: () => editTask(t) }),
       h('button.icon', {
         title: 'Delete', text: '🗑',
@@ -188,3 +267,76 @@ export function avatar(m, size = 30) {
     text: initial,
   });
 }
+
+// -------------------------------------------------------------- reviewing
+
+/** What your partner has sent over. This is the other half of the app: they
+ *  do the work, you are the one who says it counts. */
+export function reviewList({ compact = false } = {}) {
+  const items = D.toReview();
+  if (!items.length) {
+    return h('p.okline', { text: 'Nothing waiting on you.' });
+  }
+
+  const subjects = new Map(state.db.subjects.map((s) => [s.id, s]));
+
+  return h('div.stack', {}, items.slice(0, compact ? 3 : 20).map((ev) => {
+    const who = memberById(ev.owner_id);
+    const what = ev.subject_id ? (subjects.get(ev.subject_id)?.name || 'A subject')
+      : ev.task_id ? (state.db.tasks.find((t) => t.id === ev.task_id)?.title || 'A task')
+      : ev.goal_id ? (state.db.goals.find((g) => g.id === ev.goal_id)?.title || 'A goal')
+      : 'Something';
+
+    return h('div.review', {}, [
+      h('div.reviewtop', {}, [
+        h('div', {}, [
+          h('div.reviewwhat', { text: what }),
+          h('div.meta', {
+            text: `${firstNameOf(who)} · ${D.fmtDay(D.parseDay(ev.date))}`,
+          }),
+        ]),
+        h('span.pill.wait', { text: 'To check' }),
+      ]),
+      ev.note ? h('p.reviewnote', { text: ev.note }) : null,
+      ev.image ? h('button.shotlink', {
+        title: 'Look at the photo',
+        onclick: () => showPhoto(ev, what),
+      }, h('img', { src: ev.image, alt: 'Evidence from ' + firstNameOf(who), loading: 'lazy' })) : null,
+      h('div.reviewacts', {}, [
+        h('button.small.primary', {
+          text: 'Confirm',
+          onclick: () => {
+            const res = A.reviewEvidence(ev, true);
+            if (res.blocked) { toast('That one is yours to send, not to confirm', 'warn'); return; }
+            celebrate(res, 'your partner');
+            toast(`Confirmed for ${firstNameOf(who)}`, 'ok');
+            refresh();
+          },
+        }),
+        h('button.small.ghost', {
+          text: 'Not yet',
+          onclick: async () => {
+            if (!await confirmSheet('Send it back?',
+              `${firstNameOf(who)} will see that this is not done. Nothing is ticked.`, 'Send back')) return;
+            A.reviewEvidence(ev, false);
+            toast('Sent back', 'ok');
+            refresh();
+          },
+        }),
+      ]),
+    ]);
+  }));
+}
+
+function showPhoto(ev, what) {
+  const overlay = h('div.lightbox', {
+    onclick: () => overlay.remove(),
+  }, [
+    h('img', { src: ev.image, alt: 'Evidence for ' + what }),
+    h('span.meta', { text: 'Tap anywhere to close' }),
+  ]);
+  document.body.append(overlay);
+}
+
+/** How many things are sitting with you. */
+export const reviewCount = () => D.toReview().length;

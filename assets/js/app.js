@@ -6,7 +6,7 @@ import { state } from './store.js';
 import { applyTheme } from './theme.js';
 import * as D from './domain.js';
 import * as A from './actions.js';
-import { rerender, syncPill, avatar } from './views/parts.js';
+import { rerender, syncPill, avatar, reviewCount } from './views/parts.js';
 import { home } from './views/home.js';
 import { goals } from './views/goals.js';
 import { tasks, quickAdd } from './views/tasks.js';
@@ -40,10 +40,10 @@ function badges() {
   const today = D.pendingOn(me.id, date).length;
   const back = D.carried(me.id, date).reduce((n, g) => n + g.subjects.length, 0);
   return {
-    '/': today + back,
+    '/': today + back + reviewCount(),
     '/tasks': D.own('tasks', me.id).filter((t) => !t.done).length,
     '/goals': D.goalsOf(me.id).filter((g) => !D.goalProgress(g).complete).length,
-    '/partner': A.unreadNotes().length,
+    '/partner': A.unreadNotes().length + reviewCount(),
   };
 }
 

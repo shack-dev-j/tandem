@@ -18,8 +18,12 @@ Wait for the project to finish provisioning.
 
 ## 2. Create the tables
 
-In the left sidebar: **SQL Editor** → **New query**. Paste the entire contents
-of `supabase/migrations/20260906000000_initial_schema.sql` and press **Run**.
+In the left sidebar: **SQL Editor** → **New query**. Paste in each file from
+`supabase/migrations/`, oldest first, and press **Run** after each:
+
+1. `20260906000000_initial_schema.sql` — tables, seats, policies
+2. `20260906120000_partner_verification.sql` — evidence, and the rule that
+   you cannot confirm your own work
 
 *Or*, if you have connected this repository under **Integrations → GitHub**
 with the working directory `.` and the production branch `main`, the migration
@@ -38,9 +42,11 @@ insert into seats (email, role, display_name) values
   ('them@example.com',    'partner', 'Their name');
 ```
 
-`student` is the one doing the work. `partner` is the one keeping an eye on it.
-Either can be changed later in Settings, and the difference is only that a
-partner cannot tick off the student's homework.
+If you are two students tracking each other, give both of you `student` — you
+each do your own homework and confirm the other's. Use `partner` only for
+someone who never has homework of their own, like a parent or a tutor.
+
+Neither role lets you confirm your own work. That is not a setting.
 
 The email has to match exactly what each of you signs up with.
 

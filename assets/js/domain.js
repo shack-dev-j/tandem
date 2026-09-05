@@ -82,7 +82,7 @@ export const DEFAULT_PREFS = {
   dailyGoal: 3,
   showPartner: true,
   confetti: true,
-  widgets: ['checklist', 'goals', 'tasks', 'partner', 'streak', 'timetable'],
+  widgets: ['review', 'checklist', 'goals', 'tasks', 'partner', 'streak', 'timetable'],
   hidden: [],
   xp: { task: 25, check: 10, dayClear: 50, goalStep: 15, goalDone: 120, daily: 40 },
 };
@@ -146,6 +146,29 @@ export function checkedOn(ownerId, d) {
 export function pendingOn(ownerId, d) {
   const done = checkedOn(ownerId, d);
   return subjectsOn(ownerId, d).filter((s) => !done.has(s.id));
+}
+
+// -------------------------------------------------------------- evidence
+
+/** Evidence submitted and not yet dealt with. */
+export function openEvidence(ownerId = null) {
+  return rows('evidence')
+    .filter((e) => !e.reviewed_at && (!ownerId || e.owner_id === ownerId))
+    .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
+}
+
+/** What is waiting for you to look at — your partner's, never your own. */
+export function toReview() {
+  return openEvidence().filter((e) => e.owner_id !== state.me?.id);
+}
+
+/** The open evidence for one exact thing, if any. */
+export function evidenceFor(ownerId, { subjectId = null, taskId = null, goalId = null, date = null }) {
+  return openEvidence(ownerId).find((e) =>
+    (e.subject_id || null) === subjectId
+    && (e.task_id || null) === taskId
+    && (e.goal_id || null) === goalId
+    && (!date || e.date === date));
 }
 
 // --------------------------------------------------------------- carry-over

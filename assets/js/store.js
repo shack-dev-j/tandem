@@ -10,11 +10,7 @@ import { backend } from './config.js';
 import { seedRows } from './seed.js';
 
 export const TABLES = ['members', 'subjects', 'lessons', 'hw_checks', 'tasks',
-                       'goals', 'goal_log', 'notes', 'xp_events'];
-
-// Rows only their owner may write. The server enforces this too; repeating it
-// here is what lets the UI grey out the tick box instead of failing a save.
-export const OWNED = new Set(['hw_checks', 'goal_log', 'xp_events']);
+                       'goals', 'goal_log', 'notes', 'xp_events', 'evidence'];
 
 const LOCAL_ID = '00000000-0000-4000-8000-000000000001';
 
@@ -284,9 +280,21 @@ export function memberById(id) {
   return state.db.members.find((m) => m.id === id) || null;
 }
 
-export function canWrite(table, ownerId) {
-  if (!OWNED.has(table)) return true;
-  return ownerId === state.me?.id;
+/** Whether you may mark this person's work done.
+ *
+ *  You never confirm your own — that is the point of the app. The exception is
+ *  when there is nobody else yet: on a single device, or before the second
+ *  person has signed in, there is no one to ask, and an app you cannot tick
+ *  anything in is not a useful app.
+ */
+export function canVerify(ownerId) {
+  if (!partner()) return true;
+  return ownerId !== state.me?.id;
+}
+
+/** True when your own work is waiting on someone else. */
+export function needsPartner(ownerId) {
+  return Boolean(partner()) && ownerId === state.me?.id;
 }
 
 export function savePrefs(prefs) {
