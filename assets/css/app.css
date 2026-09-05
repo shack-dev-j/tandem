@@ -728,3 +728,4 @@ select { appearance: none; background-image: linear-gradient(45deg, transparent 
 }
 .pickshot:hover { border-color: var(--ac); color: var(--ac); }
 .pickshot input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.toast.undo { border-color: var(--line2); color: var(--muted); font-family: var(--mono); }

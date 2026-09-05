@@ -60,7 +60,9 @@ export function toast(message, kind = 'ok', ms = 3200) {
 }
 
 export function xpToast(amount, extra = '') {
-  if (amount > 0) toast(`+${amount} XP${extra ? ' · ' + extra : ''}`, 'xp');
+  if (!amount) return;
+  const sign = amount > 0 ? '+' : '−';
+  toast(`${sign}${Math.abs(amount)} XP${extra ? ' · ' + extra : ''}`, amount > 0 ? 'xp' : 'undo');
 }
 
 // ------------------------------------------------------------------ sheets

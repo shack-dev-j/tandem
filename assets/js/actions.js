@@ -25,6 +25,24 @@ export function award(ownerId, source, base, key) {
   return amount;
 }
 
+/** Take back XP that was paid for something no longer true.
+ *  Confirmation is your partner's to give and to withdraw, so the payment has
+ *  to be able to travel in both directions — otherwise reopening work would
+ *  leave you holding XP for homework nobody says you did. */
+export function revoke(ownerId, key) {
+  const gone = state.db.xp_events.filter((e) => e.owner_id === ownerId && e.note === key);
+  for (const e of gone) remove('xp_events', e.id);
+  return gone.reduce((n, e) => n + e.amount, 0);
+}
+
+/** An account with nothing to its name should read zero, including the
+ *  achievements it briefly earned before the work was taken back. */
+function pruneAchievements(ownerId) {
+  if (D.hasActivity(ownerId)) return;
+  for (const e of state.db.xp_events.filter(
+    (x) => x.owner_id === ownerId && x.source === 'achievement')) remove('xp_events', e.id);
+}
+
 export function syncAchievements(ownerId) {
   if (!D.hasActivity(ownerId)) return [];
   const won = [];
@@ -57,7 +75,10 @@ export function toggleCheck(ownerId, subjectId, date, on) {
 
   if (!on) {
     if (existing) remove('hw_checks', existing.id);
-    return { xp: 0 };
+    const back = revoke(ownerId, `check:${subjectId}:${day}`)
+               + revoke(ownerId, `dayclear:${day}`);
+    pruneAchievements(ownerId);
+    return { xp: -back };
   }
   if (existing) return { xp: 0 };
 
@@ -115,7 +136,13 @@ export function toggleTask(id, done) {
   // always undoable by whoever spots it.
   if (done && !canVerify(t.owner_id)) return { xp: 0, blocked: true };
   patch('tasks', id, { done, done_at: done ? nowIso() : null });
-  if (!done) return { xp: 0 };
+  if (!done) {
+    const day = D.localDay(t.done_at);
+    const back = revoke(t.owner_id, `task:${id}`)
+               + (dailyGoalMet(t.owner_id, day) ? 0 : revoke(t.owner_id, `daily:${day}`));
+    pruneAchievements(t.owner_id);
+    return { xp: -back };
+  }
 
   const p = D.prefs();
   let xp = award(t.owner_id, 'task', p.xp.task, `task:${id}`);
@@ -177,8 +204,26 @@ export function undoLastLog(goalId) {
   const logs = state.db.goal_log.filter((l) => l.goal_id === goalId)
     .sort((a, b) => (a.created_at || '').localeCompare(b.created_at || ''));
   const last = logs[logs.length - 1];
-  if (last) remove('goal_log', last.id);
+  if (!last) return null;
+  const goal = state.db.goals.find((g) => g.id === goalId);
+  const wasComplete = goal ? D.goalProgress(goal).complete : false;
+  remove('goal_log', last.id);
+  // Only give the step back if that was the last entry for the day.
+  if (!state.db.goal_log.some((l) => l.goal_id === goalId && l.date === last.date)) {
+    revoke(last.owner_id, `goalstep:${goalId}:${last.date}`);
+  }
+  if (goal && wasComplete && !D.goalProgress(goal).complete) {
+    revoke(last.owner_id, `goaldone:${goalId}:${D.goalProgress(goal).period.from}`);
+  }
+  pruneAchievements(last.owner_id);
   return last;
+}
+
+/** Did this person still hit their task goal on this day? */
+function dailyGoalMet(ownerId, day) {
+  const n = state.db.tasks.filter(
+    (t) => t.owner_id === ownerId && t.done && D.localDay(t.done_at) === day).length;
+  return n >= D.prefsOf(ownerId).dailyGoal;
 }
 
 // ------------------------------------------------------------------- notes
