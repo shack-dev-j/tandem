@@ -23,7 +23,17 @@ export async function runDiagnostics() {
     out.push(line(false, 'No backend is configured, so this is running on one device only.'));
     return show(out);
   }
-  out.push(line(true, 'Backend: ' + cfg.url));
+  const local = /^https?:\/\/(127\.0\.0\.1|localhost|0\.0\.0\.0)(:|$)/.test(cfg.url);
+  out.push(line(!local, (local ? 'Pointing at a backend on this machine — not a real Supabase project: '
+                               : 'Backend: ') + cfg.url));
+  if (local) {
+    out.push(line(false, 'Everything below describes that local server, not your project. '
+      + 'Set the real one in Settings → Connection.'));
+  }
+  if (!/^https:\/\/[a-z0-9-]+\.supabase\.co\/?$/i.test(cfg.url) && !local) {
+    out.push(line(true, 'That does not look like the usual https://<ref>.supabase.co — '
+      + 'fine if you meant it.'));
+  }
 
   let info = null;
   try {
