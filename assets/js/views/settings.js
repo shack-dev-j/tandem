@@ -3,9 +3,8 @@
 // account rather than per device.
 
 import { h, toast, confirmSheet, formSheet } from '../ui.js';
-import { state, savePrefs, signOut, patch, pull } from '../store.js';
+import { state, savePrefs, patch, pull, releasePerson } from '../store.js';
 import { setBackend, backend } from '../config.js';
-import * as supa from '../lib/supa.js';
 import { BUILD } from '../version.js';
 import { THEMES, FONTS, DENSITIES, RADII, WIDGETS, applyTheme, widgetSequence } from '../theme.js';
 import * as D from '../domain.js';
@@ -123,11 +122,10 @@ export function settings() {
       card('Connection', connection()),
 
       card('Account', [
-        state.mode === 'cloud' ? row('Signed in as', h('span.meta', { text: supa.currentUser()?.email || '' })) : null,
+        state.mode === 'cloud' ? row('You are', h('span.meta', { text: state.me?.display_name || '' })) : null,
         state.mode === 'cloud' ? h('div.btnrow', {}, [
-          h('button.ghost', { text: 'Change password', onclick: changePassword }),
-          h('button.ghost', { text: 'Sign out', onclick: signOut }),
-        ]) : h('a.button.primary', { href: '#/auth', text: 'Sign in to sync' }),
+          h('button.ghost', { text: 'I am someone else', onclick: releasePerson }),
+        ]) : h('a.button.primary', { href: '#/auth', text: 'Connect to sync' }),
         h('hr'),
         h('p.meta', { text: 'Clearing wipes this browser\'s copy. With a backend connected, it syncs back down; without one, it is gone.' }),
         h('p.meta', { text: 'Build ' + BUILD }),
@@ -250,12 +248,15 @@ function connection() {
     return [
       h('p.okline', { text: 'Connected. Everything syncs between the two of you.' }),
       row('Backend', h('code.small', { text: cfg.url })),
-      row('Members', h('div.stack.tight', {}, state.db.members.map((m) => h('div.memberline', {}, [
-        avatar(m, 24),
-        h('span', { text: m.display_name || m.email }),
-        h('span.meta', { text: m.role }),
-        m.id === state.me.id ? h('span.pill', { text: 'you' }) : null,
-      ])))),
+      row('People', h('div.stack.tight', {}, state.db.members.map((m) => {
+        const devices = (state.db.identities || []).filter((i) => i.member_id === m.id);
+        return h('div.memberline', {}, [
+          avatar(m, 24),
+          h('span', { text: m.display_name }),
+          h('span.meta', { text: devices.length === 1 ? '1 device' : `${devices.length} devices` }),
+          m.id === state.me.id ? h('span.pill', { text: 'you' }) : null,
+        ]);
+      }))),
       h('div.btnrow', {}, [
         h('button.ghost.small', { text: 'Sync now', onclick: () => { pull(); toast('Syncing…', 'ok'); } }),
         h('button.ghost.small', { text: 'Test connection', onclick: runDiagnostics }),
@@ -297,23 +298,3 @@ async function connectSheet() {
   location.reload();
 }
 
-async function changePassword() {
-  const out = await formSheet({
-    title: 'Change password',
-    submit: 'Update',
-    fields: [
-      { name: 'a', label: 'New password', type: 'password', required: true, autocomplete: 'new-password' },
-      { name: 'b', label: 'Again', type: 'password', required: true, autocomplete: 'new-password' },
-    ],
-    values: { a: '', b: '' },
-  });
-  if (!out) return;
-  if (out.a !== out.b) { toast('Those do not match', 'warn'); return; }
-  if (out.a.length < 8) { toast('Use at least 8 characters', 'warn'); return; }
-  try {
-    await supa.updatePassword(out.a);
-    toast('Password changed', 'ok');
-  } catch (e) {
-    toast(e.message, 'warn');
-  }
-}

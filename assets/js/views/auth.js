@@ -1,126 +1,105 @@
-// Signing in. Two seats, and the database decides who has one.
+// The front door: a list of names.
+//
+// There is no password here. Two people who sit next to each other already
+// know who is who, and the cost of proving it — an email each, a confirmation,
+// a rate limit, a password to forget — bought nothing they needed. What the
+// app does instead is keep the record honest and visible: every device that
+// takes a name is listed, on both screens.
 
-import { h, toast } from '../ui.js';
-import { state, signIn, signUp, signOut } from '../store.js';
+import { h, toast, formSheet } from '../ui.js';
+import { state, loadRoster, pickPerson, roster } from '../store.js';
 import { backend, setBackend } from '../config.js';
 import { runDiagnostics } from './diagnose.js';
-import * as supa from '../lib/supa.js';
 import { refresh } from './parts.js';
 
-let mode = 'in';       // 'in' | 'up'
-let busy = false;
+let picking = null;
 
 export function auth() {
   const cfg = backend();
   if (!cfg.ok) return setupScreen();
-  if (state.noSeat) return noSeatScreen();
 
-  const email = h('input', {
-    type: 'email', placeholder: 'you@example.com', autocomplete: 'username',
-    required: true,
-  });
-  const pass = h('input', {
-    type: 'password', placeholder: 'Your password',
-    autocomplete: mode === 'in' ? 'current-password' : 'new-password', required: true,
-  });
+  if (!roster.loaded) {
+    loadRoster().then(refresh);
+    return shell([h('div.spinner')]);
+  }
 
-  const go = async (e) => {
-    e?.preventDefault();
-    if (busy) return;
-    const em = email.value.trim();
-    const pw = pass.value;
-    if (!em || !pw) { toast('Email and password, please', 'warn'); return; }
-    if (mode === 'up' && pw.length < 8) { toast('Use at least 8 characters', 'warn'); return; }
+  if (roster.error) {
+    return shell([
+      h('h1', { text: 'Cannot reach the database' }),
+      h('p.lede', { text: roster.error.message }),
+      h('button.primary.full', { text: 'Test connection', onclick: runDiagnostics }),
+      h('button.link', { text: 'Use a different backend', onclick: () => { setBackend(null); location.reload(); } }),
+    ]);
+  }
 
-    busy = true;
-    refresh();
-    try {
-      if (mode === 'in') {
-        await signIn(em, pw);
-        toast('Welcome back', 'ok');
-      } else {
-        const r = await signUp(em, pw);
-        if (r?.confirmEmail) {
-          toast('Check your email to confirm, then sign in', 'ok', 6000);
-          mode = 'in';
-        } else {
-          toast('Account created', 'ok');
-        }
-      }
-      location.hash = '#/';
-    } catch (err) {
-      toast(friendly(err), 'warn', 12000);
-    } finally {
-      busy = false;
-      refresh();
-    }
-  };
+  if (!roster.people.length) {
+    return shell([
+      h('h1', { text: 'Nobody is set up yet' }),
+      h('p.lede', { text: 'The database is reachable but has no people in it. Add the two of you in the Supabase SQL editor:' }),
+      h('pre.code', { text: "select set_person('Shohjahon');\nselect set_person('Yorqinoy');" }),
+      h('button.primary.full', { text: 'Check again', onclick: () => { roster.loaded = false; refresh(); } }),
+      h('button.link', { text: 'Test connection', onclick: runDiagnostics }),
+    ]);
+  }
 
-  return h('div.authwrap', {}, h('div.authcard', {}, [
-    h('div.brandbig', {}, [h('i'), h('span', { text: 'Tandem' })]),
-    h('h1', { text: mode === 'in' ? 'Sign in' : 'Claim your seat' }),
-    h('p.lede', {
-      text: mode === 'in'
-        ? 'Two people, one set of data.'
-        : 'Your email needs a seat in the database. If it does not have one, the account will sign in but see nothing.',
-    }),
-
-    h('form.authform', { onsubmit: go }, [
-      h('label.field', {}, [h('span.flabel', { text: 'Email' }), email]),
-      h('label.field', {}, [h('span.flabel', { text: 'Password' }), pass]),
-      h('button.primary.full', {
-        type: 'submit', disabled: busy,
-        text: busy ? 'Working…' : mode === 'in' ? 'Sign in' : 'Create account',
+  return shell([
+    h('h1', { text: 'Who are you?' }),
+    h('p.lede', { text: 'Tap your name. This device will remember it.' }),
+    h('div.people', {}, roster.people.map((p) => h('button.person' + (picking === p.id ? '.busy' : ''), {
+      disabled: Boolean(picking),
+      onclick: () => choose(p),
+    }, [
+      h('span.personinitial', { text: (p.display_name || '?').charAt(0).toUpperCase() }),
+      h('span.personname', { text: p.display_name }),
+      h('span.persondevices', {
+        text: Number(p.devices) === 0 ? 'not set up yet'
+          : Number(p.devices) === 1 ? 'on 1 device' : `on ${p.devices} devices`,
       }),
-    ]),
-
-    h('div.authalt', {}, [
-      h('button.link', {
-        text: mode === 'in' ? 'I need to create my account' : 'I already have an account',
-        onclick: () => { mode = mode === 'in' ? 'up' : 'in'; refresh(); },
-      }),
-      mode === 'in' ? h('button.link', {
-        text: 'Forgot password',
-        onclick: async () => {
-          const em = email.value.trim();
-          if (!em) { toast('Type your email first', 'warn'); return; }
-          try { await supa.resetPassword(em); toast('Reset link sent', 'ok'); }
-          catch (err) { toast(friendly(err), 'warn'); }
-        },
-      }) : null,
-    ]),
-
+    ]))),
+    h('p.meta.center', { text: 'Anyone with this link can pick either name, so keep it between the two of you. Every device that takes a name is shown to you both.' }),
     h('hr'),
     h('div.authfoot', {}, [
+      h('button.link', { text: 'Test connection', onclick: runDiagnostics }),
       h('button.link', { text: 'Use a different backend', onclick: () => { setBackend(null); location.reload(); } }),
-      h('a.link', { href: '#/', text: 'Skip — use this device only' }),
     ]),
-  ]));
+  ]);
 }
 
-function friendly(err) {
-  const m = String(err?.message || err);
-  const status = err?.status;
+async function choose(person) {
+  const taken = Number(person.devices) > 0;
+  if (taken) {
+    const ok = await formSheet({
+      title: 'Already in use',
+      submit: 'Yes, this is also me',
+      fields: [{
+        note: `${person.display_name} is already signed in on ${person.devices} `
+            + `device${Number(person.devices) === 1 ? '' : 's'}. Adding this one is normal if it is `
+            + `your phone as well as your laptop — but if you are not ${person.display_name}, `
+            + `stop here. It will show up on their screen either way.`,
+      }],
+    });
+    if (!ok) return;
+  }
 
-  // 429 on sign-up is almost never about sign-ups. It is the built-in email
-  // service, which a free project may use about twice an hour, and every
-  // attempt with confirmation on spends one. Saying "too many requests" sends
-  // people off to wait, when the fix is a setting.
-  if (status === 429 || /rate limit|too many requests/i.test(m)) {
-    return 'Supabase is rate-limiting its confirmation emails — free projects get '
-         + 'about two an hour. Turn off Authentication → Sign In / Providers → '
-         + 'Email → Confirm email, and sign up again: it will not send one at all.';
+  picking = person.id;
+  refresh();
+  try {
+    await pickPerson(person.id);
+    toast(`Welcome, ${person.display_name}`, 'ok');
+    location.hash = '#/';
+  } catch (e) {
+    toast(e.message, 'warn', 6000);
+  } finally {
+    picking = null;
+    refresh();
   }
-  if (/invalid login credentials/i.test(m)) return 'That email and password do not match';
-  if (/already registered|already been registered/i.test(m)) return 'That account exists — sign in instead';
-  if (/failed to fetch|networkerror/i.test(m)) return 'Cannot reach the backend. Check the URL, or your connection.';
-  if (/email.*invalid|invalid.*email/i.test(m)) return 'That email address does not look right';
-  if (/password.*at least|weak password/i.test(m)) return 'That password is too short — use at least 8 characters';
-  if (/signups not allowed|signup is disabled/i.test(m)) {
-    return 'Sign-ups are switched off for this project. Turn them back on under '
-         + 'Authentication → Sign In / Providers → Email.';
-  }
-  return m;
+}
+
+function shell(body) {
+  return h('div.authwrap', {}, h('div.authcard', {}, [
+    h('div.brandbig', {}, [h('i'), h('span', { text: 'Tandem' })]),
+    ...body,
+  ]));
 }
 
 function setupScreen() {
@@ -130,15 +109,13 @@ function setupScreen() {
   return h('div.authwrap', {}, h('div.authcard.wide', {}, [
     h('div.brandbig', {}, [h('i'), h('span', { text: 'Tandem' })]),
     h('h1', { text: 'Connect the two of you' }),
-    h('p.lede', { text: 'Tandem keeps its data in a Supabase project you own. It is free, it takes about five minutes, and the steps are in SETUP.md in the repository.' }),
-
+    h('p.lede', { text: 'Tandem keeps its data in a Supabase project you own. It is free, and the steps are in SETUP.md.' }),
     h('ol.steps', {}, [
       h('li', { text: 'Create a project at supabase.com.' }),
-      h('li', { text: 'Open the SQL editor, paste in supabase/schema.sql, and run it.' }),
-      h('li', { text: 'Add your two emails to the seats table.' }),
+      h('li', { text: 'Open the SQL editor, paste in supabase/setup.sql, and run it.' }),
+      h('li', { text: 'Turn on Authentication → Sign In / Providers → Anonymous sign-ins.' }),
       h('li', { text: 'Copy the project URL and anon key from Settings → API, below.' }),
     ]),
-
     h('form.authform', {
       onsubmit: (e) => {
         e.preventDefault();
@@ -154,33 +131,7 @@ function setupScreen() {
       h('span.fhint', { text: 'Both are meant to be public. The database policies are what keep your data yours.' }),
       h('button.primary.full', { type: 'submit', text: 'Connect' }),
     ]),
-
     h('hr'),
     h('a.link', { href: '#/', text: 'Not now — use this device only' }),
-  ]));
-}
-
-function noSeatScreen() {
-  return h('div.authwrap', {}, h('div.authcard', {}, [
-    h('div.brandbig', {}, [h('i'), h('span', { text: 'Tandem' })]),
-    h('h1', { text: 'No seat for this account' }),
-    h('p.lede', { text: `You are signed in as ${supa.currentUser()?.email || 'this account'}, but the database is not showing you as a member. Usually that means this email has no seat — press Test connection below and it will say for certain.` }),
-    h('p.meta', { text: 'If it is the seat, add it in the Supabase SQL editor:' }),
-    h('pre.code', { text: "insert into seats (email, role, display_name)\nvalues ('you@example.com', 'student', 'Your name')\non conflict (email) do update set role = excluded.role;" }),
-    h('p.meta', { text: 'Then press this — no need to sign out or start again.' }),
-    h('button.primary.full', {
-      text: 'Check again',
-      onclick: async () => {
-        try {
-          const r = await supa.rpc('claim_seat');
-          if (r?.ok) { location.reload(); return; }
-          toast(r?.reason || 'Still no seat for this email', 'warn', 5000);
-        } catch (e) {
-          toast(e.message, 'warn', 5000);
-        }
-      },
-    }),
-    h('button.ghost.full', { text: 'Test connection', onclick: runDiagnostics }),
-    h('button.link', { text: 'Sign out', onclick: signOut }),
   ]));
 }

@@ -1,147 +1,128 @@
 # Connecting the two of you
 
 Tandem works on one device with no setup at all. To share it between two
-people, it needs somewhere to keep the data. That is Supabase — a hosted
-Postgres database with accounts built in. The free tier is far more than this
-needs, and there is no card to add.
+people it needs somewhere to keep the data: a Supabase project, which is a
+hosted Postgres database. The free tier is far more than this needs and there
+is no card to add.
 
-Roughly five minutes.
+About five minutes, and there are no passwords anywhere in it.
 
 ## 1. Make a project
 
-Go to [supabase.com](https://supabase.com), sign up, and create a project.
-Choose a region near you (Frankfurt is the closest to Uzbekistan). Save the
-database password it gives you somewhere safe — you will not need it for this,
-but it is not recoverable.
+At [supabase.com](https://supabase.com), sign up and create a project. Pick a
+region near you — Frankfurt is closest to Uzbekistan. Save the database
+password it gives you somewhere safe; you will not need it here, but it cannot
+be recovered.
 
-Wait for the project to finish provisioning.
+Wait for it to finish setting up.
 
 ## 2. Create the tables
 
-In the left sidebar: **SQL Editor** → **New query**. Paste in each file from
-`supabase/migrations/`, oldest first, and press **Run** after each:
+**SQL Editor** → **New query**. Paste in the whole of
+[`supabase/setup.sql`](supabase/setup.sql) and press **Run**.
 
-1. `20260906000000_initial_schema.sql` — tables, seats, policies
-2. `20260906120000_partner_verification.sql` — evidence, and the rule that
-   you cannot confirm your own work
-3. `20260906140000_diagnostics.sql` — what Test connection asks, and the
-   function that claims a seat added after signup
+You want *"Success. No rows returned."* That is every table, every policy, and
+the functions the app calls. It is safe to run again, and safe after a
+half-finished attempt: every statement is `if not exists`, `create or replace`,
+or `drop ... if exists`.
 
-*Or*, if you have connected this repository under **Integrations → GitHub**
-with the working directory `.` and the production branch `main`, the migration
-is applied for you on every push and you can skip this step.
+## 3. Say who the two of you are
 
-It should say "Success. No rows returned". That has created every table, every
-policy, and the trigger that hands out seats.
-
-## 3. Give yourselves the two seats
-
-New query again. Change the emails and names, then run:
+New query. Put in your real names — these are what you will tap to sign in:
 
 ```sql
-insert into seats (email, role, display_name) values
-  ('you@example.com',  'student', 'Your name'),
-  ('them@example.com', 'student', 'Their name')
-on conflict (email) do update
-  set role = excluded.role, display_name = excluded.display_name;
+select set_person('Shohjahon');
+select set_person('Yorqinoy');
 ```
 
-If you are two students tracking each other, give both of you `student` — you
-each do your own homework and confirm the other's. Use `partner` only for
-someone who never has homework of their own, like a parent or a tutor.
+Run it again any time to add someone or fix a spelling. There are no email
+addresses and no passwords; a name is the whole account.
 
-Neither role lets you confirm your own work. That is not a setting.
+Use `set_person('Name', 'partner')` for someone who never has homework of
+their own — a parent or a tutor. They can confirm work but have none to be
+confirmed. Two students should both be left as the default, `student`.
 
-The email has to match exactly what each of you signs up with.
+## 4. Turn on anonymous sign-ins
 
-`on conflict` makes this safe to run again — without it, a second run fails
-with *duplicate key value violates unique constraint "seats_pkey"*, which
-sounds like a problem and only means the seat is already there.
+**Authentication** → **Sign In / Providers** → **Anonymous sign-ins** → on.
 
-## 4. Close the door behind you
+This is what lets a device have an identity without anyone typing anything.
+Each browser gets its own, and the database uses it to work out which of you
+is asking — which is what makes "you cannot confirm your own homework" a rule
+the server enforces rather than a suggestion the app makes.
 
-**Authentication** → **Sign In / Providers** → **Email**, and turn off
-**Allow new users to sign up** once you have both created your accounts
-(step 6). Until then it needs to be on.
-
-Anyone who does sign up without a seat sees an empty app regardless — this
-just stops the accounts existing at all.
-
-While you are there, turning off **Confirm email** makes the first sign-in
-simpler. If you leave it on, you will each get a confirmation link to click
-before you can sign in.
+While you are there you can leave **Email** off entirely. Tandem does not use it.
 
 ## 5. Point the app at it
 
-**Project Settings** → **API**. You need two things:
+**Project Settings** → **API**. Copy two things:
 
 - **Project URL** — `https://something.supabase.co`
 - **anon public** key — a long string starting `eyJ`
 
-Open Tandem, and it will ask for both. Or put them in
-`assets/js/config.js` and commit, so neither of you has to type them:
+Open Tandem and it will ask for both. Or put them in `assets/js/config.js` and
+commit, so neither of you ever types them:
 
 ```js
 export const SUPABASE_URL = 'https://something.supabase.co';
 export const SUPABASE_ANON_KEY = 'eyJhbGciOi...';
 ```
 
-Both values are designed to be public and are safe in a public repository.
-They are not passwords: the anon key is a claim about *which project* you are
-talking to, and the row-level policies decide what that gets you. Without a
-seat, it gets nothing.
+Both are designed to be public and are safe in a public repository. They are
+not passwords: the anon key says *which project* you are talking to, and the
+row-level policies decide what that gets you.
 
-The one key you must never put here is the **service_role** key, which
-bypasses every policy. Leave it in the dashboard.
+The key that must never leave the dashboard is **service_role**, which bypasses
+every policy.
 
-## 6. Both of you sign in
+## 6. Both of you tap your name
 
-Open the site, choose **I need to create my account**, and use the email you
-gave a seat to. Do the same on the other person's device with the other email.
+Open the site. It asks **Who are you?** and lists the names from step 3. Tap
+yours; that device remembers it. Send the other person the same link and they
+tap theirs.
 
-That is it. Everything either of you does now appears on the other's screen
-within about twenty seconds.
+That is the whole sign-in. From then on, whatever either of you does appears
+on the other's screen within about twenty seconds.
+
+## What this trades away
+
+Anyone with the link can tap either name. There is no password stopping them,
+so the link is the only thing keeping other people out — do not post it
+publicly.
+
+Between the two of you it is deliberate rather than careless: you already know
+who is who, and the app makes every device visible. The picker says how many
+devices hold each name, taking a name that is already in use asks first, and
+Settings lists them. Nothing happens quietly.
+
+If you would rather have real passwords, the git history has the email
+version — it worked, it just cost a confirmation email, a rate limit, and two
+passwords to forget.
 
 ## If something is wrong
 
-**Press "Test connection" first.** It is on the sign-in screen, on the
-locked-out screen, and in Settings → Connection. It asks the database directly
-and tells you which of these it is, rather than leaving you to guess:
+**Press "Test connection".** It is on the sign-in screen and in Settings →
+Connection. It asks the database directly and says which of these it is:
 
 - the URL is wrong, or the project is paused
 - the anon key was rejected
-- the migrations have not been run
-- your email has no seat — and it prints the exact SQL, with your address
-  already in it
+- `setup.sql` has not been run
+- nobody has been added yet — and it prints the SQL for step 3
 
-**A seat added after you signed up now works.** The seat is handed out by a
-trigger when the account is created, so adding one afterwards used to leave you
-with a login and no membership. The app now claims it for you on the next load,
-or immediately if you press **Check again**. You no longer have to delete the
-user and start over.
+**"Nobody is set up yet"** — you have skipped step 3.
 
-
-**"No seat for this account"** — the email you signed up with is not in
-`seats`. Check for a typo, add it, then sign out and back in.
-
-**Everything is empty after signing in** — usually the seat. Run Test
-connection; if it says there is no seat, add it and press Check again.
-
-**Error 429 when creating an account** — that is the email service, not the
-sign-up. A free project may send roughly two confirmation emails an hour, and
-each attempt spends one. Turn off **Authentication → Sign In / Providers →
-Email → Confirm email** and sign up again; with confirmation off no email is
-sent, so there is nothing to rate-limit.
+**The picker never appears, or hangs** — anonymous sign-ins are off. That is
+step 4.
 
 **The pill says Offline** — the URL is wrong, or the project is paused.
 Supabase pauses free projects after a week with no requests; the dashboard has
-a button to bring it back.
+a button to wake it.
 
-**Changes the server refused** appear in Settings → Connection with the reason.
+**Changes the server refused** show up in Settings → Connection with a reason.
 That list should stay empty.
 
 ## What it costs
 
-Nothing. Two people generate a few thousand rows a year, against a free tier
+Nothing. Two people generate a few thousand rows a year against a free tier
 measured in hundreds of megabytes. The only thing to watch is the pause after
-a week of inactivity, and using the app resets that.
+a week idle, and opening the app resets that.

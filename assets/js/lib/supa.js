@@ -66,6 +66,14 @@ export function signIn(email, password) {
     { method: 'POST', auth: false, body: { email, password } }).then(land);
 }
 
+/** A session with no account behind it. Supabase calls these anonymous users;
+ *  they are real auth identities, so every row-level policy still has
+ *  something to check — you just never typed anything to get one. */
+export function signInAnonymously() {
+  if (session?.access_token) return Promise.resolve(session);
+  return call('/auth/v1/signup', { method: 'POST', auth: false, body: {} }).then(land);
+}
+
 export function signUp(email, password) {
   return call('/auth/v1/signup', { method: 'POST', auth: false, body: { email, password } })
     .then((raw) => (raw?.access_token ? land(raw) : { confirmEmail: true, user: raw }));

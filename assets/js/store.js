@@ -10,7 +10,7 @@ import { backend } from './config.js';
 import { seedRows } from './seed.js';
 
 export const TABLES = ['members', 'subjects', 'lessons', 'hw_checks', 'tasks',
-                       'goals', 'goal_log', 'notes', 'xp_events', 'evidence'];
+                       'goals', 'goal_log', 'notes', 'xp_events', 'evidence', 'identities'];
 
 const LOCAL_ID = '00000000-0000-4000-8000-000000000001';
 
@@ -21,6 +21,7 @@ export const state = {
   noSeat: false,
   db: emptyDb(),
   outbox: [],
+  lastMe: (() => { try { return localStorage.getItem('tandem.lastMe'); } catch { return null; } })(),
   sync: { status: 'idle', at: null, error: null, rejected: [] },
 };
 
@@ -93,8 +94,69 @@ function loadCache() {
 
 // -------------------------------------------------------------------- boot
 
+export const roster = { people: [], loaded: false, error: null };
+
+/** Who there is to be. Readable without picking anyone, which is what lets
+ *  the app show a list of names as its front door. */
+let rosterInFlight = null;
+export async function loadRoster() {
+  if (!backend().ok) { roster.loaded = true; return roster; }
+  if (rosterInFlight) return rosterInFlight;   // the view asks on every paint
+  rosterInFlight = (async () => {
+  try {
+    await supa.signInAnonymously();          // a session, with nobody behind it yet
+    roster.people = await supa.rpc('roster');
+    roster.error = null;
+  } catch (e) {
+    roster.error = e;
+    roster.people = [];
+  }
+  roster.loaded = true;
+  notify();
+  return roster;
+  })().finally(() => { rosterInFlight = null; });
+  return rosterInFlight;
+}
+
+/** Become one of them, on this device. */
+export async function pickPerson(memberId, label) {
+  const r = await supa.rpc('pick_identity', { p_member: memberId, p_label: label || deviceLabel() });
+  if (!r?.ok) throw new Error(r?.reason || 'Could not take that name');
+  await boot();
+  return r;
+}
+
+export async function releasePerson() {
+  try { await supa.rpc('release_identity'); } catch { /* already gone */ }
+  supa.signOut();
+  location.reload();
+}
+
+function deviceLabel() {
+  const ua = navigator.userAgent;
+  const kind = /iPhone|Android.*Mobile/i.test(ua) ? 'phone'
+    : /iPad|Tablet/i.test(ua) ? 'tablet' : 'computer';
+  const os = /Windows/i.test(ua) ? 'Windows' : /Mac OS X/i.test(ua) ? 'Mac'
+    : /Android/i.test(ua) ? 'Android' : /iPhone|iPad/i.test(ua) ? 'iOS'
+    : /Linux/i.test(ua) ? 'Linux' : '';
+  return [os, kind].filter(Boolean).join(' ');
+}
+
 export async function boot() {
   const cfg = backend();
+
+  // With a backend configured, the session is something we create rather than
+  // something we find: every device signs in anonymously, and only then does
+  // it say who it is. Waiting for a session to already exist meant a first
+  // visit always fell back to local mode.
+  if (cfg.ok && !supa.currentUser()) {
+    try {
+      await supa.signInAnonymously();
+    } catch (e) {
+      console.warn('tandem: could not open a session', e);
+    }
+  }
+
   const user = supa.currentUser();
 
   if (cfg.ok && user) {
@@ -104,26 +166,28 @@ export async function boot() {
     state.me = state.db.members.find((m) => m.id === user.id) || null;
     state.ready = true;
     notify();
-    let fetched = await pull();         // cache first, network second
-    state.me = state.db.members.find((m) => m.id === user.id) || null;
+    // Which person is this device acting as? The server knows; ask it before
+    // pulling anything, because it decides what we are allowed to see.
+    let mine = null;
+    try {
+      const who = await supa.rpc('connection_check');
+      mine = who?.picked ? who : null;
+    } catch { /* offline: fall back to whatever the cache says */ }
 
-    // A seat is handed out by a trigger when the account is created, so
-    // adding one afterwards leaves a real login with no membership. Rather
-    // than tell someone to delete their account and start again, take it now.
-    if (!state.me && fetched) {
-      try {
-        const r = await supa.rpc('claim_seat');
-        if (r?.ok) {
-          fetched = await pull();
-          state.me = state.db.members.find((m) => m.id === user.id) || null;
-        }
-      } catch { /* older schema, no such function — fall through to noSeat */ }
+    const fetched = await pull();
+    state.me = mine
+      ? state.db.members.find((m) => m.display_name === mine.name) || null
+      : null;
+    if (!state.me && !fetched) {
+      state.me = state.db.members.find((m) => m.id === state.lastMe) || null;
     }
-
-    // Only a successful read proves there is no seat. Signing in on a train
-    // must not look like being thrown out.
     state.noSeat = !state.me && fetched;
-    if (state.me) await seedIfEmpty(state.me.id);
+    if (state.me) {
+      state.lastMe = state.me.id;
+      try { localStorage.setItem('tandem.lastMe', state.me.id); } catch { /* private window */ }
+      supa.rpc('touch_identity').catch(() => {});
+      await seedIfEmpty(state.me.id);
+    }
   } else {
     state.mode = 'local';
     scope = 'local';

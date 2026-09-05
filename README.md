@@ -44,9 +44,16 @@ Keyboard: `h` today, `g` goals, `t` tasks, `w` timetable, `f` partner,
 
 ## Two people, and only two
 
-Accounts are seats. An email in the `seats` table gets in; anything else signs
-up successfully and then sees an empty app, because every database policy is
-written against membership rather than against a list in the browser.
+There are no passwords. The app opens on a list of names; you tap yours and
+that device remembers it. Underneath, each device signs in anonymously, so it
+still has a real identity for the database to check — you just never typed
+anything to get one.
+
+The cost is that anyone with the link can tap either name, so the link is what
+keeps other people out. Between two people who sit next to each other that is
+a fair trade, and the app makes it visible rather than quiet: the picker shows
+how many devices hold each name, taking one already in use asks first, and
+Settings lists them.
 
 The two of you can see everything of each other's. What you cannot do is claim
 the other's work: `hw_checks`, `goal_log` and `xp_events` are writable only by

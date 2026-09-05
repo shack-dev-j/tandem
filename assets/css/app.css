@@ -747,3 +747,24 @@ select { appearance: none; background-image: linear-gradient(45deg, transparent 
 .diag.ok .diagmark { color: var(--green); }
 .diag.bad { color: var(--red); }
 .diag.bad .diagmark { color: var(--red); }
+
+/* -------------------------------------------------------- the name picker */
+
+.people { display: flex; flex-direction: column; gap: 9px; margin: 18px 0 14px; }
+.person {
+  display: flex; align-items: center; gap: 13px; text-align: left;
+  padding: 13px 15px; border-radius: var(--r);
+  border: 1px solid var(--line); background: var(--panel2);
+  transition: border-color .14s, transform .1s, background .14s;
+}
+.person:hover:not(:disabled) { border-color: var(--ac); background: var(--field); }
+.person:active:not(:disabled) { transform: scale(.99); }
+.person:disabled { opacity: .5; cursor: default; }
+.person.busy { border-color: var(--ac); }
+.personinitial {
+  width: 40px; height: 40px; flex: none; border-radius: 50%;
+  display: grid; place-items: center; font: 600 17px var(--sans);
+  background: var(--ac-soft); color: var(--ac); border: 1px solid var(--ac-line);
+}
+.personname { flex: 1; font-size: 16px; font-weight: 500; }
+.persondevices { font: 400 11px var(--mono); color: var(--faint); }
