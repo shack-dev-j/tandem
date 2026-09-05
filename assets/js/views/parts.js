@@ -113,7 +113,7 @@ export const editGoal = (g) => editors.goal(g);
 // -------------------------------------------------------------------- goal
 
 export function goalCard(g, { readonly = false, compact = false } = {}) {
-  const p = D.prefs();
+  const p = D.prefsOf(g.owner_id);
   const prog = D.goalProgress(g, new Date(), p.weekStart);
   const pace = D.goalPace(g);
   const streak = D.goalStreak(g, new Date(), p.weekStart);

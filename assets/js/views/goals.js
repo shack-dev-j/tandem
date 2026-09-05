@@ -74,7 +74,7 @@ export function goals() {
 
 /** Last 14 periods, as a row of bars. Small, but it is the honest picture. */
 function history(g) {
-  const p = D.prefs();
+  const p = D.prefsOf(g.owner_id);
   const step = { daily: 1, weekly: 7, monthly: 30 }[g.cadence] || 0;
   if (!step) {
     const logs = D.own('goal_log', g.owner_id).filter((l) => l.goal_id === g.id);

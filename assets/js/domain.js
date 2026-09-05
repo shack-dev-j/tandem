@@ -92,6 +92,12 @@ export function prefs(member = state.me) {
   return { ...DEFAULT_PREFS, ...p, xp: { ...DEFAULT_PREFS.xp, ...(p.xp || {}) } };
 }
 
+/** Someone's own settings. Your partner's homework carries for the number of
+ *  days *they* chose, not the number you did. */
+export function prefsOf(ownerId) {
+  return prefs((state.db.members || []).find((m) => m.id === ownerId) || state.me);
+}
+
 // ------------------------------------------------------------------ lookup
 
 const rows = (t) => state.db[t] || [];
@@ -161,7 +167,7 @@ export function trackingSince(ownerId) {
 export function carried(ownerId, before = new Date()) {
   const floor = trackingSince(ownerId);
   const school = schoolDays(ownerId);
-  const limit = prefs().carryDays;
+  const limit = prefsOf(ownerId).carryDays;
   const out = [];
   let d = addDays(before, -1);
   let walked = 0;
