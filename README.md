@@ -1,5 +1,7 @@
 # Tandem
 
+**[shack-dev-j.github.io/tandem](https://shack-dev-j.github.io/tandem/)**
+
 A homework and goal tracker built for exactly two people. One of you does the
 work; the other can see how it is actually going, set goals, and say something
 about it.
