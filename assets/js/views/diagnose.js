@@ -1,10 +1,10 @@
-// Telling you which of four very different problems you have.
+// Telling you which of several very different problems you have.
 //
-// A wrong URL, a rejected key, unapplied migrations and a missing seat all
-// produce the same symptom — an app that signs you in and then shows nothing.
-// This asks the database directly and names the cause. It lives in its own
-// module because it has to be reachable from the locked-out screen, which by
-// definition cannot reach Settings.
+// A wrong URL, a rejected key, an unrun setup.sql, an empty roster and
+// anonymous sign-ins being switched off all produce the same symptom — an app
+// that opens and shows nothing useful. This asks the database directly and
+// names the cause. It lives in its own module because it has to be reachable
+// from the sign-in screen, which by definition cannot reach Settings.
 
 import { h, panelSheet, closeSheet } from '../ui.js';
 import { backend } from '../config.js';
@@ -15,24 +15,25 @@ const line = (ok, text) => h('div.diag' + (ok ? '.ok' : '.bad'), {}, [
   h('span', { text }),
 ]);
 
+const ADD_PEOPLE = "select set_person('Shohjahon');\nselect set_person('Yorqinoy');";
+
 export async function runDiagnostics() {
   const cfg = backend();
   const out = [];
 
   if (!cfg.ok) {
-    out.push(line(false, 'No backend is configured, so this is running on one device only.'));
+    out.push(line(false, 'No backend is configured, so this is running on one device only. '
+      + 'That is also why you can tick your own work — there is nobody to ask.'));
     return show(out);
   }
+
   const local = /^https?:\/\/(127\.0\.0\.1|localhost|0\.0\.0\.0)(:|$)/.test(cfg.url);
-  out.push(line(!local, (local ? 'Pointing at a backend on this machine — not a real Supabase project: '
-                               : 'Backend: ') + cfg.url));
+  out.push(line(!local, (local
+    ? 'Pointing at a server on this machine, not a real Supabase project: '
+    : 'Backend: ') + cfg.url));
   if (local) {
-    out.push(line(false, 'Everything below describes that local server, not your project. '
-      + 'Set the real one in Settings → Connection.'));
-  }
-  if (!/^https:\/\/[a-z0-9-]+\.supabase\.co\/?$/i.test(cfg.url) && !local) {
-    out.push(line(true, 'That does not look like the usual https://<ref>.supabase.co — '
-      + 'fine if you meant it.'));
+    out.push(line(false, 'Everything below describes that local server. Press "Use a different '
+      + 'backend" on the sign-in screen to clear it.'));
   }
 
   let info = null;
@@ -43,8 +44,8 @@ export async function runDiagnostics() {
       out.push(line(false, 'Cannot reach that URL at all. Check it for typos, and check the '
         + 'project is not paused — Supabase pauses free projects after a week idle.'));
     } else if (e.status === 404) {
-      out.push(line(false, 'The project is there, but the migrations have not been run. '
-        + 'Open the SQL editor and run each file in supabase/migrations, oldest first.'));
+      out.push(line(false, 'The project is there, but setup.sql has not been run. Open the SQL '
+        + 'editor, paste in supabase/setup.sql, and press Run.'));
     } else if (e.status === 401 || e.status === 403) {
       out.push(line(false, 'The anon key was rejected. Copy it again from '
         + 'Project Settings → API — it is the one labelled "anon public".'));
@@ -54,40 +55,42 @@ export async function runDiagnostics() {
     return show(out);
   }
 
-  out.push(line(true, `Database reached — ${info.seats} seat(s), ${info.members} member(s).`));
-
-  if (!info.signed_in) {
-    // Whether any seats exist at all decides what to do next, and it is
-    // knowable without being signed in — so say it rather than making
-    // someone create an account to find out it was never going to work.
-    if (info.seats === 0) {
-      out.push(line(false, 'There are no seats yet, so nobody can get in — including you. '
-        + 'Add yours in the SQL editor first:\n'
-        + 'insert into seats (email, role, display_name)\n'
-        + "values ('you@example.com', 'student', 'Your name')\n"
-        + 'on conflict (email) do update set role = excluded.role;'));
-    } else {
-      out.push(line(false, `Not signed in yet. There ${info.seats === 1 ? 'is 1 seat' : `are ${info.seats} seats`} `
-        + 'waiting — go to the sign-in screen, choose "I need to create my account", '
-        + 'and use the exact email you gave a seat to.'));
-    }
+  // An older setup.sql answers in the shape it knew about. Say so, rather than
+  // reporting "undefined" for every field the current one would have filled in.
+  if (typeof info.people !== 'number') {
+    out.push(line(false, 'The database is running an older version of the schema — it still '
+      + 'expects email accounts. Run the current supabase/setup.sql; it is safe over what is '
+      + 'already there.'));
     return show(out);
   }
-  out.push(line(true, 'Signed in as ' + info.email));
 
-  out.push(line(info.has_seat, info.has_seat
-    ? 'That email has a seat.'
-    : `No seat for ${info.email}. Run this in the SQL editor, then press Check again:\n`
-      + 'insert into seats (email, role, display_name)\n'
-      + `values ('${info.email}', 'student', 'Your name')\n`
-      + 'on conflict (email) do update set role = excluded.role;'));
+  out.push(line(true, `Database reached — ${info.people} `
+    + `${info.people === 1 ? 'person' : 'people'} set up.`));
 
-  if (info.has_seat) {
-    out.push(line(info.is_member, info.is_member
-      ? 'Membership is active. Everything should be syncing.'
-      : 'Seated but not a member yet — the seat was added after you signed up. '
-        + 'Press Check again, or reload, and it will be claimed.'));
+  if (info.people === 0) {
+    out.push(line(false, 'Nobody has been added yet, so there is no name to tap. Run this in '
+      + 'the SQL editor:\n' + ADD_PEOPLE));
+    return show(out);
   }
+
+  out.push(line(true, 'Names: ' + (info.names || []).join(', ')));
+
+  if (!info.has_session) {
+    out.push(line(false, 'This browser has no session, which is almost always anonymous '
+      + 'sign-ins being switched off. Turn it on under Authentication → Sign In / Providers → '
+      + 'Anonymous sign-ins, then reload.'));
+    return show(out);
+  }
+  out.push(line(true, 'This device has a session.'));
+
+  if (!info.picked) {
+    out.push(line(false, 'No name has been tapped on this device yet. Go back and choose one — '
+      + 'that is the whole sign-in.'));
+    return show(out);
+  }
+
+  out.push(line(true, `You are ${info.name}, on `
+    + `${info.devices} device${Number(info.devices) === 1 ? '' : 's'}. Everything should be syncing.`));
 
   return show(out);
 }

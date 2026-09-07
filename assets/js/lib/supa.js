@@ -49,6 +49,9 @@ async function call(path, { method = 'GET', body, headers = {}, auth = true } = 
 }
 
 // ------------------------------------------------------------------- auth
+//
+// Only anonymous sessions now. Email and passwords were removed along with
+// the accounts they protected: see supabase/migrations/…_pick_your_name.sql.
 
 function land(raw) {
   if (!raw?.access_token) throw new Error('The sign-in reply had no token in it');
@@ -61,10 +64,6 @@ function land(raw) {
   return session;
 }
 
-export function signIn(email, password) {
-  return call('/auth/v1/token?grant_type=password',
-    { method: 'POST', auth: false, body: { email, password } }).then(land);
-}
 
 /** A session with no account behind it. Supabase calls these anonymous users;
  *  they are real auth identities, so every row-level policy still has
@@ -74,18 +73,8 @@ export function signInAnonymously() {
   return call('/auth/v1/signup', { method: 'POST', auth: false, body: {} }).then(land);
 }
 
-export function signUp(email, password) {
-  return call('/auth/v1/signup', { method: 'POST', auth: false, body: { email, password } })
-    .then((raw) => (raw?.access_token ? land(raw) : { confirmEmail: true, user: raw }));
-}
 
-export function resetPassword(email) {
-  return call('/auth/v1/recover', { method: 'POST', auth: false, body: { email } });
-}
 
-export function updatePassword(password) {
-  return call('/auth/v1/user', { method: 'PUT', body: { password } });
-}
 
 let refreshing = null;
 

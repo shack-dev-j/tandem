@@ -118,9 +118,8 @@ function paint() {
     return;
   }
 
-  // No session and a backend configured: the only screen is the door.
-  const needsAuth = route === '/auth' || state.noSeat;
-  if (needsAuth || !state.me) {
+  // Nobody chosen yet — or asked for outright — means the door.
+  if (route === '/auth' || !state.me) {
     document.body.dataset.shell = 'bare';
     mount(app, auth());
     return;

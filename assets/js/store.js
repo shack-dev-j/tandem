@@ -18,7 +18,6 @@ export const state = {
   mode: 'local',          // 'local' | 'cloud'
   ready: false,
   me: null,
-  noSeat: false,
   db: emptyDb(),
   outbox: [],
   lastMe: (() => { try { return localStorage.getItem('tandem.lastMe'); } catch { return null; } })(),
@@ -181,7 +180,6 @@ export async function boot() {
     if (!state.me && !fetched) {
       state.me = state.db.members.find((m) => m.id === state.lastMe) || null;
     }
-    state.noSeat = !state.me && fetched;
     if (state.me) {
       state.lastMe = state.me.id;
       try { localStorage.setItem('tandem.lastMe', state.me.id); } catch { /* private window */ }
@@ -383,24 +381,12 @@ export function savePrefs(prefs) {
 
 // ------------------------------------------------------------------ session
 
-export async function signIn(email, password) {
-  await supa.signIn(email, password);
-  await boot();
-}
-
-export async function signUp(email, password) {
-  const r = await supa.signUp(email, password);
-  if (!r?.confirmEmail) await boot();
-  return r;
-}
-
 export function signOut() {
   supa.signOut();
   state.me = null;
   state.db = emptyDb();
   state.outbox = [];
   state.mode = 'local';
-  state.noSeat = false;
   notify();
   location.reload();
 }
